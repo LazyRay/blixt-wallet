@@ -15,8 +15,10 @@ export const blixtTheme = {
   red: "#d0311e",
   green: "#1c8c27",
 
+  link: "#4f9ca8",
+
   fontMedium: "IBMPlexSans-Medium",
-  fontRegular:  Platform.OS === "ios" ? "IBMPlexSans" : "IBMPlexSans-Regular",
+  fontRegular:  (Platform.OS === "ios" || Platform.OS === "macos") ? "IBMPlexSans" : "IBMPlexSans-Regular",
 }
 
 export const PLATFORM = {
@@ -75,7 +77,7 @@ export default {
   // Button
   // buttonFontFamily: platform === PLATFORM.IOS ? 'System' : 'Roboto_medium',
   // buttonDisabledBg: '#b5b5b5',
-  buttonPadding: 6,
+  buttonPadding: 0,
   get buttonPrimaryBg() {
     return this.brandPrimary;
   },
@@ -187,7 +189,7 @@ export default {
   // tabBarTextColor: platform === PLATFORM.IOS ? '#737373' : '#bfc6ea',
   tabBarTextSize: platform === PLATFORM.IOS ? 14 : 11,
   activeTab: platform === PLATFORM.IOS ? '#007aff' : '#fff',
-  sTabBarActiveTextColor: '#007aff',
+  sTabBarActiveTextColor: '#007aff', // TODO(hsjoberg): s?
   tabBarActiveTextColor: platform === PLATFORM.IOS ? '#2874F0' : '#fff',
   tabActiveBgColor: platform === PLATFORM.IOS ? '#cde1f9' : '#3F51B5',
 
@@ -198,7 +200,7 @@ export default {
   toolbarSearchIconSize: platform === PLATFORM.IOS ? 20 : 23,
   toolbarInputColor: platform === PLATFORM.IOS ? '#CECDD2' : '#fff',
   searchBarHeight: platform === PLATFORM.IOS ? 30 : 40,
-  searchBarInputHeight: platform === PLATFORM.IOS ? 30 : 50,
+  searchBarInputHeight: platform === PLATFORM.IOS ? 30 : platform === "macos" ? 20 : 50,
   toolbarBtnTextColor: platform === PLATFORM.IOS ? '#007aff' : '#fff',
   iosStatusbar: 'dark-content',
   toolbarDefaultBorder: platform === PLATFORM.IOS ? '#a7a6ab' : '#3F51B5',
@@ -223,7 +225,7 @@ export default {
   // inputBorderColor: '#D9D5DC',
   inputSuccessBorderColor: '#2b8339',
   inputErrorBorderColor: '#ed2f2f',
-  inputHeightBase: 50,
+  inputHeightBase: platform !== "macos" ? 50 : 25,
   get inputColor() {
     return this.textColor;
   },

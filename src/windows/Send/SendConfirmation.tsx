@@ -1,81 +1,152 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
-import { Vibration, BackHandler, Keyboard } from "react-native";
-import { Button, Container, Icon, Text, Input, Spinner } from "native-base";
-import { RouteProp } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
+import React, { useEffect, useLayoutEffect, useState } from "react";
+import { BackHandler, Keyboard, StyleSheet, Vibration } from "react-native";
+import { Button, Container, Icon, Spinner, Text } from "native-base";
+import { useDebounce } from "use-debounce";
+import { useTranslation } from "react-i18next";
+import { Dropdown } from "react-native-element-dropdown";
+import Color from "color";
 
-import { SendStackParamList } from "./index";
-import { useStoreActions, useStoreState } from "../../state/store";
-import { blixtTheme } from "../../native-base-theme/variables/commonColor";
-import BlixtForm from "../../components/Form";
 import { BitcoinUnits, unitToSatoshi } from "../../utils/bitcoin-units";
-import { extractDescription } from "../../utils/NameDesc";
-import Long from "long";
-import useBalance from "../../hooks/useBalance";
+import BlixtForm, { IFormItem } from "../../components/Form";
 import { hexToUint8Array, toast } from "../../utils";
+import { useStoreActions, useStoreState } from "../../state/store";
+import Input from "../../components/Input";
 import { PLATFORM } from "../../utils/constants";
+import { RouteProp } from "@react-navigation/native";
+import { SendStackParamList } from "./index";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { blixtTheme } from "../../native-base-theme/variables/commonColor";
+import { extractDescription } from "../../utils/NameDesc";
+import { Channel } from "react-native-turbo-lnd/protos/lightning_pb";
+import { namespaces } from "../../i18n/i18n.constants";
+import useBalance from "../../hooks/useBalance";
+import useLightningReadyToSend from "../../hooks/useLightingReadyToSend";
+import { IModelSendPaymentPayload } from "../../state/Send";
 
 export interface ISendConfirmationProps {
   navigation: StackNavigationProp<SendStackParamList, "SendConfirmation">;
   route: RouteProp<SendStackParamList, "SendConfirmation">;
 }
+
+const choiceLabel = (n: Channel) =>
+  `${n.peerAlias || n.remotePubkey?.substring(0, 7)} - ${n.chanId} - ${n.localBalance.toString()}/${n.remoteBalance.toString()}`;
+
 export default function SendConfirmation({ navigation, route }: ISendConfirmationProps) {
+  const t = useTranslation(namespaces.send.sendConfirmation).t;
   const [amountEditable, setAmountEditable] = useState(false);
+  const [outChannel, setOutChannel] = useState<string>("any");
   const sendPayment = useStoreActions((actions) => actions.send.sendPayment);
-  const sendPaymentOld = useStoreActions((actions) => actions.send.sendPaymentOld);
   const getBalance = useStoreActions((actions) => actions.channel.getBalance);
+  const getChannels = useStoreState((store) => store.channel.channels).filter((n) => !!n.active);
   const nodeInfo = useStoreState((store) => store.send.remoteNodeInfo);
   const paymentRequest = useStoreState((store) => store.send.paymentRequest);
   const bolt11Invoice = useStoreState((store) => store.send.paymentRequestStr);
   const [isPaying, setIsPaying] = useState(false);
   const bitcoinUnit = useStoreState((store) => store.settings.bitcoinUnit);
   const fiatUnit = useStoreState((store) => store.settings.fiatUnit);
-  const lightningReady = useStoreState((store) => store.lightning.ready);
-  const rpcReady = useStoreState((store) => store.lightning.rpcReady);
-  const syncedToChain = useStoreState((store) => store.lightning.syncedToChain);
-  const syncedToGraph = useStoreState((store) => store.lightning.syncedToGraph);
-  const {
-    dollarValue,
-    bitcoinValue,
-    onChangeFiatInput,
-    onChangeBitcoinInput,
-  } = useBalance((paymentRequest?.numSatoshis), true);
+  const queryRoutes = useStoreActions((actions) => actions.send.queryRoutesForFeeEstimate);
+  const [feeEstimate, setFeeEstimate] = useState<number | undefined>(undefined);
+
+  const { dollarValue, bitcoinValue, onChangeFiatInput, onChangeBitcoinInput } = useBalance(
+    paymentRequest?.numSatoshis,
+    true,
+  );
   const clear = useStoreActions((store) => store.send.clear);
-  const callback = (route.params?.callback) ?? (() => {});
-  const multiPathPaymentsEnabled = useStoreState((store) => store.settings.multiPathPaymentsEnabled);
+  const callback = route.params?.callback ?? (() => {});
+  const lightningReadyToSend = useLightningReadyToSend();
+  const [bitcoinValueDebounce] = useDebounce(bitcoinValue, 1000);
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
       callback(null);
+      return null;
     });
 
     if (paymentRequest) {
       if (!paymentRequest.numSatoshis) {
         setAmountEditable(true);
       }
+
+      if (!!paymentRequest.numSatoshis) {
+        const getFeeEstimate = async () => {
+          if (paymentRequest && paymentRequest.numSatoshis) {
+            try {
+              const { routes } = await queryRoutes({
+                amount: paymentRequest.numSatoshis,
+                pubKey: paymentRequest.destination,
+                routeHints: paymentRequest.routeHints,
+              });
+
+              if (!!routes.length && !!routes[0].totalFees) {
+                setFeeEstimate(routes[0].totalFees ? Number(routes[0].totalFees) : 0);
+              }
+            } catch (error) {
+              console.log(error);
+            }
+          }
+        };
+
+        getFeeEstimate();
+        setIsPaying(false);
+      }
     }
 
     return () => {
-      backHandler.remove()
+      backHandler.remove();
       clear();
-    }
+    };
   }, []);
+
+  // This use effect executes for zero amount invoices, fetch fee estimate on amount change.
+  useEffect(() => {
+    if (paymentRequest && !paymentRequest.numSatoshis) {
+      const getFeeEstimate = async () => {
+        if (!!bitcoinValue) {
+          try {
+            const { routes } = await queryRoutes({
+              amount: BigInt(bitcoinValue),
+              pubKey: paymentRequest.destination,
+              routeHints: paymentRequest.routeHints,
+            });
+
+            if (!!routes.length) {
+              if (routes[0].totalFees !== null && routes[0].totalFees !== undefined) {
+                setFeeEstimate(routes[0].totalFees ? Number(routes[0].totalFees) : 0);
+              } else {
+                setFeeEstimate(0);
+              }
+            }
+          } catch (error) {
+            console.log(error);
+          }
+        }
+      };
+
+      getFeeEstimate();
+    }
+  }, [bitcoinValueDebounce]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: "Pay invoice",
+      headerTitle: t("layout.title"),
+      headerBackTitle: t("buttons.back", { ns: namespaces.common }),
       headerShown: true,
     });
 
-    // Disable swiping to the left because it messes with the keyboard focus
-    navigation.dangerouslyGetParent()?.setOptions({
+    // Prevent going back by swiping to the right
+    // when we are here in the confirmation screen
+    navigation.getParent()?.setOptions({
       gestureEnabled: false,
-      gestureResponseDistance: { horizontal: 0 },
     });
+    return () => {
+      navigation.getParent()?.setOptions({
+        gestureEnabled: true,
+      });
+    };
   }, [navigation]);
 
   if (!paymentRequest) {
-    return (<Text>Error</Text>);
+    return <Text>{t("msg.error", { ns: namespaces.common })}</Text>;
   }
 
   const { name, description } = extractDescription(paymentRequest.description);
@@ -84,45 +155,38 @@ export default function SendConfirmation({ navigation, route }: ISendConfirmatio
     try {
       setIsPaying(true);
       Keyboard.dismiss();
-      const payload = amountEditable
-        ? { amount: Long.fromValue(unitToSatoshi(Number.parseFloat(bitcoinValue || "0"), bitcoinUnit)) }
-        : undefined;
 
-      let preimage: Uint8Array;
+      const payload: IModelSendPaymentPayload = {
+        amount: !!amountEditable
+          ? BigInt(unitToSatoshi(Number.parseFloat(bitcoinValue || "0"), bitcoinUnit))
+          : undefined,
 
-      if (multiPathPaymentsEnabled) {
-        try {
-          console.log("Paying with MPP enabled");
-          const response = await sendPayment(payload);
-          preimage = hexToUint8Array(response.paymentPreimage);
-        } catch (e) {
-          console.log("Didn't work. Trying without instead");
-          console.log(e);
-          console.log("Paying with MPP disabled");
-          const response = await sendPaymentOld(payload);
-          preimage = response.paymentPreimage;
-        }
-      }
-      else {
-        console.log("Paying with MPP disabled");
-        const response = await sendPaymentOld(payload);
-        preimage = response.paymentPreimage;
-      }
+        outgoingChannelId: outChannel !== "any" ? BigInt(outChannel) : undefined,
+      };
+
+      const response = await sendPayment(payload);
+      const preimage = hexToUint8Array(response.paymentPreimage);
+
       await getBalance();
       Vibration.vibrate(32);
       navigation.replace("SendDone", { preimage, callback });
-    } catch (e) {
-      console.log(e);
-      toast(`Error: ${e.message}`, 60000, "danger", "Okay");
+    } catch (error: any) {
+      console.log(error);
+      toast(
+        `${t("msg.error", { ns: namespaces.common })}: ${error.message}`,
+        60000,
+        "danger",
+        "Okay",
+      );
       setIsPaying(false);
     }
   };
 
-  const formItems = [];
+  const formItems: IFormItem[] = [];
 
   formItems.push({
     key: "INVOICE",
-    title: "Invoice",
+    title: t("form.invoice.title"),
     success: true,
     component: (
       <>
@@ -138,7 +202,7 @@ export default function SendConfirmation({ navigation, route }: ISendConfirmatio
 
   formItems.push({
     key: "AMOUNT_BTC",
-    title: `Amount ${BitcoinUnits[bitcoinUnit].nice}`,
+    title: `${t("form.amount.title")} ${BitcoinUnits[bitcoinUnit].nice}`,
     component: (
       <Input
         disabled={!amountEditable}
@@ -153,7 +217,7 @@ export default function SendConfirmation({ navigation, route }: ISendConfirmatio
 
   formItems.push({
     key: "AMOUNT_FIAT",
-    title: `Amount ${fiatUnit}`,
+    title: `${t("form.amount.title")} ${fiatUnit}`,
     component: (
       <Input
         disabled={!amountEditable}
@@ -169,50 +233,135 @@ export default function SendConfirmation({ navigation, route }: ISendConfirmatio
   if (name) {
     formItems.push({
       key: "RECIPIENT",
-      title: "Recipient",
-      component: (<Input disabled={true} value={name} />),
+      title: t("form.recipient.title"),
+      component: <Input disabled={true} value={name} />,
     });
-  }
-  else if (nodeInfo && nodeInfo.node && nodeInfo.node.alias) {
+  } else if (nodeInfo && nodeInfo.node && nodeInfo.node.alias) {
     formItems.push({
       key: "NODE_ALIAS",
-      title: "Node Alias",
-      component: (<Input disabled={true} value={nodeInfo.node.alias} />),
+      title: t("form.nodeAlias.title"),
+      component: <Input disabled={true} value={nodeInfo.node.alias} />,
     });
   }
 
   formItems.push({
     key: "MESSAGE",
-    title: "Message",
-    component: (<Input multiline={PLATFORM === "android"} disabled={true} value={description} />),
+    title: t("form.description.title"),
+    component: <Input multiline={PLATFORM === "android"} numberOfLines={3} disabled={true} value={description} />,
   });
 
-  const canSend = (
-    lightningReady &&
-    rpcReady &&
-    syncedToChain &&
-    syncedToGraph &&
-    !isPaying
-  );
+  if (feeEstimate !== undefined) {
+    formItems.push({
+      key: "FEE_ESTIMATE",
+      title: t("form.feeEstimate.title"),
+      component: <Input disabled={true} value={feeEstimate.toString()} />,
+    });
+  }
+
+  if (getChannels !== undefined && !!getChannels.length) {
+    const dropdownData = [
+      {
+        label: "Any",
+        value: "any",
+      } as { label: string; value: string },
+    ].concat(
+      getChannels.map((n, _) => ({
+        label: choiceLabel(n),
+        value: n.chanId?.toString() ?? "any",
+      })),
+    );
+
+    if (PLATFORM !== "macos") {
+      // TODO(hsjoberg): cleanup styles
+      formItems.push({
+        key: "CHANNEL",
+        title: t("form.outgoingChannel.title"),
+        component: (
+          <Dropdown
+            labelField="label"
+            valueField="value"
+            data={dropdownData}
+            fontFamily={
+              PLATFORM === "ios" || PLATFORM === "macos" ? "IBMPlexSans" : "IBMPlexSans-Regular"
+            }
+            value={outChannel}
+            selectedTextProps={{
+              numberOfLines: 1,
+              lineBreakMode: "tail",
+              style: {
+                fontFamily:
+                  PLATFORM === "ios" || PLATFORM === "macos"
+                    ? "IBMPlexSans"
+                    : "IBMPlexSans-Regular",
+                fontSize: 17,
+                color: blixtTheme.light,
+              },
+            }}
+            onChange={(n) => setOutChannel(n.value?.toString() ?? "any")}
+            maxHeight={250}
+            style={styles.dropdown}
+            containerStyle={{
+              borderWidth: 0,
+              backgroundColor: blixtTheme.gray,
+            }}
+            itemContainerStyle={{
+              borderWidth: 0,
+              backgroundColor: blixtTheme.gray,
+            }}
+            itemTextStyle={{
+              fontSize: 13,
+              lineHeight: 18,
+              color: blixtTheme.light,
+            }}
+            activeColor={Color(blixtTheme.gray).lighten(0.3).hex()}
+          />
+        ),
+      });
+    }
+  }
+
+  const canSend = lightningReadyToSend && !isPaying;
 
   return (
     <Container>
       <BlixtForm
         items={formItems}
-        buttons={[(
+        buttons={[
           <Button
             key="PAY"
             testID="pay-invoice"
             block={true}
             primary={true}
             onPress={send}
-            disabled={!canSend || (amountEditable ? (bitcoinValue === "0" || bitcoinValue === "" || bitcoinValue === undefined) : false)}
+            disabled={
+              !canSend ||
+              (amountEditable
+                ? bitcoinValue === "0" || bitcoinValue === "" || bitcoinValue === undefined
+                : false)
+            }
           >
             {canSend && <Text>Pay</Text>}
             {!canSend && <Spinner color={blixtTheme.light} />}
-          </Button>
-        ),]}
+          </Button>,
+        ]}
       />
     </Container>
   );
-};
+}
+
+const styles = StyleSheet.create({
+  dropdown: {
+    flex: 1,
+    marginBottom: 8,
+    marginLeft: 5,
+    marginRight: 6,
+    minHeight: 60,
+  },
+  icon: {
+    marginRight: 5,
+  },
+  iconStyle: {
+    width: 20,
+    height: 20,
+  },
+});

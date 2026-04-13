@@ -1,15 +1,29 @@
 import React, { useState } from "react";
-import { StyleSheet, Share, Platform, LayoutAnimation, ScrollView } from "react-native";
+import {
+  StyleSheet,
+  Share,
+  Platform,
+  LayoutAnimation,
+  ScrollView,
+  TouchableOpacity,
+} from "react-native";
 import DialogAndroid from "react-native-dialogs";
-import Clipboard from "@react-native-community/clipboard";
-import { Body, Card, Text, CardItem, H1, View, Button, Icon } from "native-base";
+import Clipboard from "@react-native-clipboard/clipboard";
+import { Card, Text, CardItem, H1, View, Icon } from "native-base";
+import { Button } from "../components/Button";
 import { fromUnixTime } from "date-fns";
-import MapView, { PROVIDER_DEFAULT } from "react-native-maps";
+import MapView, { PROVIDER_DEFAULT, Marker } from "react-native-maps";
 
 import Blurmodal from "../components/BlurModal";
 import QrCode from "../components/QrCode";
-import { capitalize, formatISO, isLong, decryptLNURLPayAesTagMessage, toast, bytesToHexString } from "../utils";
-import { formatBitcoin } from "../utils/bitcoin-units"
+import {
+  capitalize,
+  formatISO,
+  decryptLNURLPayAesTagMessage,
+  toast,
+  bytesToHexString,
+} from "../utils";
+import { formatBitcoin } from "../utils/bitcoin-units";
 import { useStoreState, useStoreActions } from "../state/store";
 import { extractDescription } from "../utils/NameDesc";
 import { smallScreen } from "../utils/device";
@@ -20,6 +34,11 @@ import { ITransaction } from "../storage/database/transaction";
 import { blixtTheme } from ".././native-base-theme/variables/commonColor";
 import { PLATFORM } from "../utils/constants";
 import { Alert } from "../utils/alert";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../i18n/i18n.constants";
+
+const durationAsSeconds = (n: number) => `${(n / 1000).toFixed(2)}s`;
 
 interface IMetaDataProps {
   title: string;
@@ -35,24 +54,100 @@ function MetaData({ title, data, url }: IMetaDataProps) {
         toast("Copied to clipboard", undefined, "warning");
       }}
     >
-      <Text style={{ fontWeight: "bold" }}>{title}:{"\n"}</Text>
+      <Text style={{ fontWeight: "bold" }}>
+        {title}:{"\n"}
+      </Text>
       {!url && data}
       {url && <TextLink url={url}>{data}</TextLink>}
     </Text>
   );
-};
+}
+
+function MetaDataLightningAddress({ title, data: lightningAddress, url }: IMetaDataProps) {
+  const getContactByLightningAddress = useStoreState(
+    (actions) => actions.contacts.getContactByLightningAddress,
+  );
+  const syncContact = useStoreActions((actions) => actions.contacts.syncContact);
+
+  const promptLightningAddressContact = () => {
+    if (!lightningAddress) {
+      return;
+    }
+
+    if (getContactByLightningAddress(lightningAddress)) {
+      Alert.alert("", `${lightningAddress} is in your contact list!`);
+    } else {
+      Alert.alert(
+        "Add to Contact List",
+        `Would you like to add ${lightningAddress} to your contact list?`,
+        [
+          {
+            text: "No",
+            style: "cancel",
+          },
+          {
+            text: "Yes",
+            style: "default",
+            onPress: async () => {
+              const domain = lightningAddress.split("@")[1] ?? "";
+              syncContact({
+                type: "PERSON",
+                domain,
+                lnUrlPay: null,
+                lnUrlWithdraw: null,
+                lightningAddress: lightningAddress,
+                lud16IdentifierMimeType: "text/identifier",
+                note: "",
+                label: null,
+              });
+            },
+          },
+        ],
+      );
+    }
+  };
+
+  return (
+    <Text
+      style={[style.detailText, {}]}
+      onPress={() => {
+        Clipboard.setString(lightningAddress);
+        toast("Copied to clipboard", undefined, "warning");
+      }}
+    >
+      <Text style={{ fontWeight: "bold" }}>
+        {title}:{"\n"}
+      </Text>
+      {lightningAddress}
+      <TouchableOpacity
+        onPress={promptLightningAddressContact}
+        style={{ justifyContent: "center", paddingLeft: 10, paddingRight: 15 }}
+      >
+        <Icon
+          onPress={promptLightningAddressContact}
+          style={{ fontSize: 22, marginBottom: -6 }}
+          type="AntDesign"
+          name={getContactByLightningAddress(lightningAddress) !== undefined ? "check" : "adduser"}
+        />
+      </TouchableOpacity>
+    </Text>
+  );
+}
 
 export interface ITransactionDetailsProps {
   navigation: any;
   route: any;
 }
 export default function TransactionDetails({ route, navigation }: ITransactionDetailsProps) {
+  const t = useTranslation(namespaces.transactionDetails).t;
   const rHash: string = route.params.rHash;
   const transaction = useStoreState((store) => store.transaction.getTransactionByRHash(rHash));
   const checkOpenTransactions = useStoreActions((store) => store.transaction.checkOpenTransactions);
   const cancelInvoice = useStoreActions((store) => store.receive.cancelInvoice);
   const bitcoinUnit = useStoreState((store) => store.settings.bitcoinUnit);
-  const transactionGeolocationMapStyle = useStoreState((store) => store.settings.transactionGeolocationMapStyle);
+  const transactionGeolocationMapStyle = useStoreState(
+    (store) => store.settings.transactionGeolocationMapStyle,
+  );
   const [mapActive, setMapActive] = useState(false);
   const syncTransaction = useStoreActions((store) => store.transaction.syncTransaction);
 
@@ -60,7 +155,7 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
 
   if (!transaction) {
     console.log("No transaction");
-    return (<></>);
+    return <></>;
   }
 
   const { name, description } = extractDescription(transaction.description);
@@ -73,7 +168,7 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
 
   const onPaymentRequestTextPress = () => {
     Clipboard.setString(transaction.paymentRequest);
-    toast("Copied to clipboard", undefined, "warning");
+    toast(t("msg.clipboardCopy", { ns: namespaces.common }), undefined, "warning");
   };
 
   const onPressCancelInvoice = async () => {
@@ -92,7 +187,7 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
 
   const onPressSetNote = async () => {
     if (PLATFORM === "android") {
-      const result = await DialogAndroid.prompt(null, "Set a note for this transaction", {
+      const result = await DialogAndroid.prompt(null, t("setNoteDialog.text"), {
         defaultValue: transaction.note,
       });
       if (result.action === DialogAndroid.actionPositive) {
@@ -103,8 +198,8 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
       }
     } else {
       Alert.prompt(
-        "Note",
-        "Set a note for this transaction",
+        t("setNoteDialog.title"),
+        t("setNoteDialog.text"),
         async (text) => {
           await syncTransaction({
             ...transaction,
@@ -113,20 +208,31 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
         },
         "plain-text",
         transaction.note ?? undefined,
-      )
+      );
     }
-  }
+  };
 
-  let transactionValue: Long;
+  let transactionValue: bigint;
   let direction: "send" | "receive";
-  if (isLong(transaction.value) && transaction.value.greaterThanOrEqual(0)) {
+  if (transaction.value >= 0) {
     direction = "receive";
     transactionValue = transaction.value;
-  }
-  else {
+  } else {
     direction = "send";
     transactionValue = transaction.value;
   }
+
+  // In the case of an 0 sat invoice, transaction.value will be 0,
+  // instead get from amtPaidSat.
+  // TODO eventually sync up with what TransactionCard.tsx does.
+  if (transactionValue === BigInt(0)) {
+    transactionValue = transaction.amtPaidSat;
+  }
+
+  const formattedTransactionValue =
+    transactionValue === BigInt(0)
+      ? formatBitcoin(transactionValue, bitcoinUnit)
+      : formatBitcoin(transactionValue, bitcoinUnit, { includeSign: true });
 
   const hasCoordinates = transaction.locationLat && transaction.locationLong;
 
@@ -135,81 +241,157 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
       <Blurmodal goBackByClickingOutside={true}>
         <Card style={style.card}>
           <CardItem>
-            <ScrollView style={{backgroundColor:"transparent"}} contentContainerStyle={{backgroundColor:"transparent"}}>
-              <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
-                <H1 style={style.header}>
-                  Transaction
-                </H1>
+            <ScrollView alwaysBounceVertical={false}>
+              <View style={style.headerContainer}>
+                <H1 style={style.header}>{t("title")}</H1>
               </View>
               <View style={{ flexDirection: "row", marginTop: 5, marginBottom: 10 }}>
                 <Button small style={style.actionBarButton} onPress={onPressSetNote}>
-                  <Text>Set note</Text>
+                  <Text>{t("button.setNote")}</Text>
                 </Button>
-                {transaction.status === "OPEN" &&
+                {transaction.status === "OPEN" && direction === "receive" && (
                   <Button small danger onPress={onPressCancelInvoice} style={style.actionBarButton}>
-                    <Text>Cancel invoice</Text>
+                    <Text>{t("button.cancelInvoice")}</Text>
                   </Button>
-                }
-                {hasCoordinates &&
-                  <Button small={true} onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setCurrentScreen("Map");
-                    setTimeout(() => {
-                      setMapActive(true);
-                    }, 650);
-                  }} style={style.actionBarButton}>
-                    <Text>Show map</Text>
+                )}
+                {hasCoordinates && (
+                  <Button
+                    small={true}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                      setCurrentScreen("Map");
+                      setTimeout(() => {
+                        setMapActive(true);
+                      }, 850);
+                    }}
+                    style={style.actionBarButton}
+                  >
+                    <Text>{t("button.showMap")}</Text>
                   </Button>
-                }
+                )}
               </View>
-              <MetaData title="Date" data={formatISO(fromUnixTime(transaction.date.toNumber()))} />
-              {transaction.note && <MetaData title="Note" data={transaction.note} />}
-              {transaction.website && <MetaData title="Website" data={transaction.website} url={"https://" + transaction.website} />}
-              {transaction.type !== "NORMAL" && <MetaData title="Type" data={transaction.type} />}
-              {(transaction.type === "LNURL" && transaction.lnurlPayResponse && transaction.lnurlPayResponse.successAction) && <LNURLMetaData transaction={transaction} />}
-              {(transaction.nodeAliasCached && name === null) && <MetaData title="Node alias" data={transaction.nodeAliasCached} />}
-              {direction === "receive" && !transaction.tlvRecordName && transaction.payer && <MetaData title="Payer" data={transaction.payer} />}
-              {direction === "receive" && transaction.tlvRecordName && <MetaData title="Payer" data={transaction.tlvRecordName} />}
-              {(direction === "send" && name) && <MetaData title="Recipient" data={name} />}
-              {(description !== null && description.length > 0) && <MetaData title="Description" data={description} />}
-              <MetaData title="Amount" data={formatBitcoin(transactionValue, bitcoinUnit)} />
-              {transaction.valueFiat != null && transaction.valueFiatCurrency && <MetaData title="Amount in Fiat (Time of Payment)" data={`${transaction.valueFiat.toFixed(2)} ${transaction.valueFiatCurrency}`} />}
-              {transaction.fee !== null && transaction.fee !== undefined && <MetaData title="Fee" data={transaction.fee.toString() + " Satoshi"} />}
-              {transaction.hops && transaction.hops.length > 0 && <MetaData title="Number of hops" data={transaction.hops.length.toString()} />}
-              {direction === "send" && <MetaData title="Remote pubkey" data={transaction.remotePubkey} />}
-              <MetaData title="Payment hash" data={transaction.rHash}/>
-              {transaction.status === "SETTLED" && transaction.preimage && <MetaData title="Preimage" data={bytesToHexString(transaction.preimage)}/>}
-              <MetaData title="Status" data={capitalize(transaction.status)} />
-              {transaction.status === "OPEN" && transaction.type !== "LNURL" &&
+              <MetaData
+                title={t("date")}
+                data={formatISO(fromUnixTime(Number(transaction.date)))}
+              />
+              {!!transaction.note && <MetaData title={t("note")} data={transaction.note} />}
+              {!!transaction.website && (
+                <MetaData
+                  title={t("website")}
+                  data={transaction.website}
+                  url={"https://" + transaction.website}
+                />
+              )}
+              {transaction.type !== "NORMAL" && (
+                <MetaData title={t("type")} data={transaction.type} />
+              )}
+              {transaction.type === "LNURL" &&
+                transaction.lnurlPayResponse &&
+                transaction.lnurlPayResponse.successAction && (
+                  <LNURLMetaData transaction={transaction} />
+                )}
+              {!!transaction.nodeAliasCached && name === null && (
+                <MetaData
+                  title={t("generic.nodeAlias", { ns: namespaces.common })}
+                  data={transaction.nodeAliasCached}
+                />
+              )}
+              {direction === "send" && !!transaction.lightningAddress && (
+                <MetaDataLightningAddress
+                  title={t("generic.lightningAddress", { ns: namespaces.common })}
+                  data={transaction.lightningAddress}
+                />
+              )}
+              {direction === "receive" && !transaction.tlvRecordName && !!transaction.payer && (
+                <MetaData title={t("payer")} data={transaction.payer} />
+              )}
+              {direction === "receive" && !!transaction.tlvRecordName && (
+                <MetaData title={t("payer")} data={transaction.tlvRecordName} />
+              )}
+              {direction === "send" && !!name && <MetaData title={t("recipient")} data={name} />}
+              {!!description && (
+                <MetaData
+                  title={t("generic.description", { ns: namespaces.common })}
+                  data={description}
+                />
+              )}
+              <MetaData
+                title={t("generic.amount", { ns: namespaces.common })}
+                data={formattedTransactionValue}
+              />
+              {transaction.valueFiat != null && transaction.valueFiatCurrency && (
+                <MetaData
+                  title={t("amountInFiatTimeOfPayment")}
+                  data={`${transaction.valueFiat.toFixed(2)} ${transaction.valueFiatCurrency}`}
+                />
+              )}
+              {transaction.fee !== null && transaction.fee !== undefined && (
+                <MetaData
+                  title={t("generic.fee", { ns: namespaces.common })}
+                  data={transaction.fee.toString() + " Satoshi"}
+                />
+              )}
+              {!!transaction.duration && (
+                <MetaData title={t("duration")} data={durationAsSeconds(transaction.duration)} />
+              )}
+              {transaction.hops && transaction.hops.length > 0 && (
+                <MetaData title={t("numberOfHops")} data={transaction.hops.length.toString()} />
+              )}
+              {direction === "send" && (
+                <MetaData title={t("remotePubkey")} data={transaction.remotePubkey} />
+              )}
+              <MetaData title={t("paymentHash")} data={transaction.rHash} />
+              {transaction.status === "SETTLED" && transaction.preimage && (
+                <MetaData title={t("preimage")} data={bytesToHexString(transaction.preimage)} />
+              )}
+              <MetaData title={t("status")} data={capitalize(transaction.status)} />
+              {transaction.status === "OPEN" && transaction.type !== "LNURL" && (
                 <>
                   <View style={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-                    <QrCode size={smallScreen ? 220 : 280} data={transaction.paymentRequest.toUpperCase()} onPress={onQrPress} border={25} />
+                    <QrCode
+                      size={smallScreen ? 220 : 280}
+                      data={transaction.paymentRequest.toUpperCase()}
+                      onPress={onQrPress}
+                      border={25}
+                    />
                   </View>
-                  <CopyAddress text={transaction.paymentRequest} onPress={onPaymentRequestTextPress} />
+                  <CopyAddress
+                    text={transaction.paymentRequest}
+                    onPress={onPaymentRequestTextPress}
+                  />
                 </>
-              }
+              )}
             </ScrollView>
           </CardItem>
         </Card>
       </Blurmodal>
     );
-  }
-  else if (currentScreen === "Map") {
+  } else if (currentScreen === "Map") {
     return (
       <Blurmodal>
         <Card style={style.card}>
           <CardItem>
-            <Body>
-              <View style={{ marginBottom: 8, display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center",  width: "100%" }}>
-                <H1 style={style.header}>
-                  Transaction
-                </H1>
-                <Button small={true} onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setCurrentScreen("Overview");
-                  setMapActive(false);
-                }}>
-                  <Text style={{ fontSize: 9 }}>Go back</Text>
+            <ScrollView alwaysBounceVertical={false}>
+              <View
+                style={{
+                  marginBottom: 8,
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <H1 style={style.header}>{t("title")}</H1>
+                <Button
+                  small={true}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setCurrentScreen("Overview");
+                    setMapActive(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 9 }}>{t("goBack")}</Text>
                 </Button>
               </View>
               <MapView
@@ -217,7 +399,7 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
                 style={{
                   width: "100%",
                   height: 475,
-                  backgroundColor:blixtTheme.gray,
+                  backgroundColor: blixtTheme.gray,
                   opacity: mapActive ? 1 : 0,
                 }}
                 initialRegion={{
@@ -228,24 +410,26 @@ export default function TransactionDetails({ route, navigation }: ITransactionDe
                 }}
                 customMapStyle={MapStyle[transactionGeolocationMapStyle]}
               >
-                <MapView.Marker coordinate={{
-                  longitude: transaction.locationLong!,
-                  latitude: transaction.locationLat!,
-                }} />
+                <Marker
+                  coordinate={{
+                    longitude: transaction.locationLong!,
+                    latitude: transaction.locationLat!,
+                  }}
+                />
               </MapView>
-            </Body>
+            </ScrollView>
           </CardItem>
         </Card>
       </Blurmodal>
     );
   }
-};
-
+}
 
 interface IWebLNMetaDataProps {
   transaction: ITransaction;
 }
 function LNURLMetaData({ transaction }: IWebLNMetaDataProps) {
+  const t = useTranslation(namespaces.transactionDetails).t;
   let secretMessage: string | null = null;
 
   if (transaction.lnurlPayResponse?.successAction?.tag === "aes") {
@@ -258,21 +442,34 @@ function LNURLMetaData({ transaction }: IWebLNMetaDataProps) {
 
   return (
     <>
-      {transaction.lnurlPayResponse?.successAction?.tag === "message" &&
-        <MetaData title={`Message from ${transaction.website}`} data={transaction.lnurlPayResponse.successAction.message} />
-      }
-      {transaction.lnurlPayResponse?.successAction?.tag === "url" &&
+      {transaction.lnurlPayResponse?.successAction?.tag === "message" && (
+        <MetaData
+          title={`${t("lnurl.messageFromWebsite")} ${transaction.website}`}
+          data={transaction.lnurlPayResponse.successAction.message}
+        />
+      )}
+      {transaction.lnurlPayResponse?.successAction?.tag === "url" && (
         <>
-          <MetaData title={`Messsage from ${transaction.website}`} data={transaction.lnurlPayResponse.successAction.description} />
-          <MetaData title={`URL received from ${transaction.website}`} data={transaction.lnurlPayResponse.successAction.url} url={transaction.lnurlPayResponse.successAction.url} />
+          <MetaData
+            title={`${t("lnurl.messageFromWebsite")} ${transaction.website}`}
+            data={transaction.lnurlPayResponse.successAction.description}
+          />
+          <MetaData
+            title={`${t("lnurl.urlReceivedFromWebsite")} ${transaction.website}`}
+            data={transaction.lnurlPayResponse.successAction.url}
+            url={transaction.lnurlPayResponse.successAction.url}
+          />
         </>
-      }
-      {transaction.lnurlPayResponse?.successAction?.tag === "aes" &&
+      )}
+      {transaction.lnurlPayResponse?.successAction?.tag === "aes" && (
         <>
-          <MetaData title={`Messsage from ${transaction.website}`} data={transaction.lnurlPayResponse.successAction.description} />
-          <MetaData title="Secret Message" data={secretMessage!} />
+          <MetaData
+            title={`${t("lnurl.messageFromWebsite")} ${transaction.website}`}
+            data={transaction.lnurlPayResponse.successAction.description}
+          />
+          <MetaData title={`${t("lnurl.secretMessage")}`} data={secretMessage!} />
         </>
-      }
+      )}
     </>
   );
 }
@@ -280,8 +477,15 @@ function LNURLMetaData({ transaction }: IWebLNMetaDataProps) {
 const style = StyleSheet.create({
   card: {
     padding: 5,
-    minHeight: "50%",
-    maxHeight: "85%",
+    minHeight: PLATFORM !== "web" ? "50%" : undefined,
+    maxHeight: PLATFORM !== "web" ? "85%" : undefined,
+    overflow: "hidden",
+  },
+  headerContainer: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
   },
   header: {
     fontWeight: "bold",
@@ -290,7 +494,7 @@ const style = StyleSheet.create({
     marginBottom: 7,
     ...Platform.select({
       web: {
-        wordBreak: "break-all"
+        wordBreak: "break-all",
       },
     }),
   },
@@ -302,5 +506,5 @@ const style = StyleSheet.create({
   },
   actionBarButton: {
     marginLeft: 7,
-  }
+  },
 });

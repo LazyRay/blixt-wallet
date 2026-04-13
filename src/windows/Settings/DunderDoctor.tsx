@@ -1,9 +1,10 @@
-import React, { useEffect, useLayoutEffect, useState } from "react";
+import React, { useLayoutEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
-import { Button, Icon, Text, Spinner } from "native-base";
+import { Icon, Text, Spinner } from "native-base";
+import { Button } from "../../components/Button";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
-import Clipboard from "@react-native-community/clipboard";
+import Clipboard from "@react-native-clipboard/clipboard";
 
 import Container from "../../components/Container";
 import { useStoreActions, useStoreState } from "../../state/store";
@@ -36,8 +37,8 @@ export default function DunderDoctor({ navigation }: ISelectListProps) {
           <NavigationButton onPress={onPressCopy}>
             <Icon type="MaterialCommunityIcons" name="content-copy" style={{ fontSize: 22 }} />
           </NavigationButton>
-        )
-      }
+        );
+      },
     });
   }, [navigation]);
 
@@ -47,12 +48,12 @@ export default function DunderDoctor({ navigation }: ISelectListProps) {
       newLog.push(message);
       return newLog;
     });
-  }
+  };
 
   const onPressCopy = () => {
     Clipboard.setString(log.join("\n"));
     toast("Copied to clipboard");
-  }
+  };
 
   const runDiagnostic = async () => {
     setRunning(true);
@@ -81,7 +82,6 @@ export default function DunderDoctor({ navigation }: ISelectListProps) {
       pushLog(`Funds available on Dunder: ${checkStatusResult.unclaimedAmountSat}.`);
       pushLog(`Connecting to node in an attempt to claim these funds...`);
 
-
       let attempt = 3;
       const connected = await (async () => {
         while (attempt--) {
@@ -89,7 +89,7 @@ export default function DunderDoctor({ navigation }: ISelectListProps) {
             pushLog("Connecting to Dunder's Lightning node...");
             await connectPeer(serviceStatusResult.peer);
             return true;
-          } catch (e) {
+          } catch (e: any) {
             if (!e.message.includes("already connected to peer")) {
               pushLog(`Failed to connect: ${e.message}.`);
               await timeout(5000);
@@ -112,7 +112,7 @@ export default function DunderDoctor({ navigation }: ISelectListProps) {
         pushLog("Failed to connect to Dunder's Lightning node. Try again later.");
         pushLog("Done.");
       } else {
-        pushLog("Connected to Dunder's Lightning node.")
+        pushLog("Connected to Dunder's Lightning node.");
         pushLog("Done.");
       }
     })();
@@ -130,23 +130,18 @@ export default function DunderDoctor({ navigation }: ISelectListProps) {
   return (
     <Container>
       <View style={{ flex: 1, padding: 14 }}>
-        <ScrollView contentContainerStyle={{ padding: 10 }} style={{ backgroundColor: blixtTheme.gray, marginTop: 10, marginBottom: 20, flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 10 }}
+          style={{ backgroundColor: blixtTheme.gray, marginTop: 10, marginBottom: 20, flex: 1 }}
+        >
           {log.map((logItem, i) => (
             <Text key={i}>{logItem}</Text>
           ))}
         </ScrollView>
-        <Button
-          onPress={runDiagnostic}
-          block={true}
-          primary={true}
-          disabled={running}
-        >
-          {running
-            ? <Spinner color={blixtTheme.light} />
-            : <Text>Run</Text>
-          }
+        <Button onPress={runDiagnostic} block={true} primary={true} disabled={running}>
+          {running ? <Spinner color={blixtTheme.light} /> : <Text>Run</Text>}
         </Button>
       </View>
     </Container>
-  )
+  );
 }

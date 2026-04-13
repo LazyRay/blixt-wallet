@@ -1,20 +1,46 @@
-import { Action, action, Thunk, thunk } from "easy-peasy";
 import * as Bech32 from "bech32";
-import { Hash as sha256Hash, HMAC as sha256HMAC } from "fast-sha256";
+
+//
+// Sorry for the condition in this file.
+// Reach out to me on Telegram @hsjoberg or lnurl mafia group https://t.me/lnurl if you have any questions.
+//
+import { Action, Thunk, action, thunk } from "easy-peasy";
+import {
+  bytesToHexString,
+  bytesToString,
+  getDomainFromURL,
+  hexToUint8Array,
+  stringToUint8Array,
+  timeout,
+} from "../utils/index";
+import { HMAC as sha256HMAC, Hash as sha256Hash } from "fast-sha256";
+
+import { Alert } from "../utils/alert";
+import { IStoreModel } from "./index";
+import { dunderPrompt } from "../utils/dunder";
 import secp256k1 from "secp256k1";
 
-import { IStoreModel } from "./index";
-import { IStoreInjections } from "./store";
-import { timeout, bytesToString, getDomainFromURL, stringToUint8Array, hexToUint8Array, bytesToHexString } from "../utils/index";
-
-import Long from "long";
-import { lnrpc } from "../../proto/proto";
-import { LndMobileEventEmitter } from "../utils/event-listener";
+import { connectPeer, signMessage, subscribeInvoices } from "react-native-turbo-lnd";
+import { PayReq } from "react-native-turbo-lnd/protos/lightning_pb";
 
 import logger from "./../utils/log";
 const log = logger("LNURL");
 
-export type LNURLType = "channelRequest" | "login" | "withdrawRequest" | "payRequest" | "unknown" | "error" | "unsupported";
+export type LNURLType =
+  | "channelRequest"
+  | "login"
+  | "withdrawRequest"
+  | "payRequest"
+  | "unknown"
+  | "error"
+  | "unsupported";
+
+export type LightningAddress = string;
+
+export interface ILNUrlError {
+  status: "ERROR";
+  reason: string;
+}
 
 export interface ILNUrlChannelRequest {
   uri: string;
@@ -29,7 +55,7 @@ export interface ILNUrlChannelRequestResponse {
 }
 
 export interface ILNUrlAuthRequest {
-  tag: "login",
+  tag: "login";
   k1: string;
 }
 
@@ -45,6 +71,9 @@ export interface ILNUrlWithdrawRequest {
   maxWithdrawable: number;
   defaultDescription: string;
   minWithdrawable?: number;
+  balanceCheck?: string;
+  currentBalance?: number;
+  payLink?: string;
   tag: "withdrawRequest";
 }
 
@@ -53,16 +82,51 @@ export interface ILNUrlWithdrawResponse {
   reason?: string;
 }
 
+export type Metadata = [string, string];
+
+export type ILNUrlPayRequestMetadata = Metadata[];
+
+export interface ILNUrlPayRequestPayerData {
+  name?: {
+    mandatory: boolean;
+  };
+  pubkey?: {
+    mandatory: boolean;
+  };
+  identifier?: {
+    mandatory: boolean;
+  };
+  email?: {
+    mandatory: boolean;
+  };
+  auth?: {
+    mandatory?: boolean;
+    k1?: string; // hex
+  };
+}
+
+export interface ILNUrlPayResponsePayerData {
+  name?: string;
+  pubkey?: string; // hex
+  auth?: {
+    key: string;
+    k1: string;
+    sig: string; // hex
+  };
+  email?: string;
+  identifier?: string;
+}
+
 export interface ILNUrlPayRequest {
   callback: string;
   maxSendable: number;
   minSendable: number;
   metadata: string;
   commentAllowed?: number;
+  disposable?: boolean | null;
   tag: "payRequest";
+  payerData?: ILNUrlPayRequestPayerData;
 }
-
-export type ILNUrlPayRequestMetadata = string[][];
 
 export interface ILNUrlPayResponse {
   pr: string;
@@ -71,23 +135,23 @@ export interface ILNUrlPayResponse {
     | ILNUrlPayResponseSuccessActionMessage
     | ILNUrlPayResponseSuccessActionUrl
     | null;
-  disposable: boolean | null;
-  routes:	any[]; // NOT SUPPORTED
+  routes: any[]; // NOT SUPPORTED
+  disposable?: boolean | null;
 }
 
 export interface ILNUrlPayResponseSuccessActionUrl {
-  tag: "url",
+  tag: "url";
   description: string;
   url: string;
 }
 
 export interface ILNUrlPayResponseSuccessActionMessage {
-  tag: "message",
+  tag: "message";
   message: string;
 }
 
 export interface ILNUrlPayResponseSuccessActionAes {
-  tag: "aes",
+  tag: "aes";
   description: string;
   ciphertext: string; // base64-encoded
   iv: string; // base64-encoded
@@ -106,46 +170,95 @@ export interface IDoChannelRequestPayload {
   private: true;
 }
 
+interface IDoPayRequestPayload {
+  msat: number;
+  comment?: string;
+  lightningAddress: string | null;
+  lud16IdentifierMimeType: string | null;
+  metadataTextPlain: string;
+  payerData?: ILNUrlPayResponsePayerData;
+}
+
 export type IDoPayRequestResponse = ILNUrlPayResponse;
 
-type LNUrlRequest = ILNUrlChannelRequest | ILNUrlAuthRequest | ILNUrlWithdrawRequest | ILNUrlPayRequest | ILNUrlDummy;
-
-const LNURLAUTH_CANONICAL_PHRASE = "DO NOT EVER SIGN THIS TEXT WITH YOUR PRIVATE KEYS! IT IS ONLY USED FOR DERIVATION OF LNURL-AUTH HASHING-KEY, DISCLOSING ITS SIGNATURE WILL COMPROMISE YOUR LNURL-AUTH IDENTITY AND MAY LEAD TO LOSS OF FUNDS!";
+type LNUrlRequest =
+  | ILNUrlChannelRequest
+  | ILNUrlAuthRequest
+  | ILNUrlWithdrawRequest
+  | ILNUrlPayRequest
+  | ILNUrlDummy;
 
 export interface ILNUrlModel {
-  setLNUrl: Thunk<ILNUrlModel, string, any, IStoreModel, Promise<LNURLType>>;
+  setLNUrl: Thunk<
+    ILNUrlModel,
+    { bech32data?: string; url?: string },
+    any,
+    IStoreModel,
+    Promise<LNURLType>
+  >;
 
-  doChannelRequest: Thunk<ILNUrlModel, IDoChannelRequestPayload, IStoreInjections, IStoreModel, Promise<boolean>>;
-  doAuthRequest: Thunk<ILNUrlModel, void, IStoreInjections, IStoreModel, Promise<boolean>>;
-  doWithdrawRequest: Thunk<ILNUrlModel, { satoshi: number; }, IStoreInjections, IStoreModel, Promise<boolean>>;
-  doPayRequest: Thunk<ILNUrlModel, { msat: number, comment?: string }, IStoreInjections, IStoreModel, Promise<IDoPayRequestResponse>>;
+  doChannelRequest: Thunk<
+    ILNUrlModel,
+    IDoChannelRequestPayload,
+    any,
+    IStoreModel,
+    Promise<boolean>
+  >;
+  doAuthRequest: Thunk<ILNUrlModel, void, any, IStoreModel, Promise<boolean>>;
+  doWithdrawRequest: Thunk<
+    ILNUrlModel,
+    { satoshi: number },
+    any,
+    IStoreModel,
+    Promise<boolean>
+  >;
+  doPayRequest: Thunk<
+    ILNUrlModel,
+    IDoPayRequestPayload,
+    any,
+    IStoreModel,
+    Promise<IDoPayRequestResponse>
+  >;
 
   setLNUrlStr: Action<ILNUrlModel, string>;
+  setLightningAddress: Action<ILNUrlModel, string>;
   setType: Action<ILNUrlModel, LNURLType>;
   setLNUrlObject: Action<ILNUrlModel, LNUrlRequest>;
+  setPayRequestResponse: Action<ILNUrlModel, ILNUrlPayResponse>;
 
   lnUrlStr?: string;
+  lightningAddress?: string;
   type?: LNURLType;
   lnUrlObject: LNUrlRequest | undefined;
+  payRequestResponse: ILNUrlPayResponse | undefined;
 
   clear: Action<ILNUrlModel>;
-};
+
+  resolveLightningAddress: Thunk<ILNUrlModel, LightningAddress>;
+}
 
 export const lnUrl: ILNUrlModel = {
-  setLNUrl: thunk(async (actions, bech32data) => {
+  setLNUrl: thunk(async (actions, { bech32data, url }) => {
     log.i("setLNUrl");
     actions.clear();
     try {
       let type: LNURLType;
-      const decodedBech32 = Bech32.bech32.decode(bech32data, 1024);
-      const decodedUrl = bytesToString(Bech32.bech32.fromWords(decodedBech32.words));
-      log.d("decodedUrl", [decodedUrl]);
-      actions.setLNUrlStr(decodedUrl);
+      if (bech32data) {
+        const decodedBech32 = Bech32.bech32.decode(bech32data, 4096);
+        url = bytesToString(Bech32.bech32.fromWords(decodedBech32.words));
+      } else if (!url) {
+        throw new Error("Neither bech32data or url is provided");
+      }
+      log.d("url", [url]);
+      actions.setLNUrlStr(url);
 
-      const queryParams = parseQueryParams(decodedUrl);
+      const queryParams = parseQueryParams(url);
       log.d("queryParams", [queryParams]);
       // If the data is in the URL
-      if ("tag" in queryParams) {
+      if (
+        ("tag" in queryParams && queryParams.tag === "channelRequest") ||
+        queryParams.tag == "login"
+      ) {
         log.d(`Found tag ${queryParams.tag} in query params`);
         const tag = queryParams.tag; // FIXME
 
@@ -156,37 +269,38 @@ export const lnUrl: ILNUrlModel = {
         if (tag === "login") {
           console.log("login");
           type = "login";
-        }
-        else {
+        } else {
           throw "unknown";
         }
         actions.setLNUrlObject(queryParams); // FIXME
       }
       // If we have to make a GET request to get the data
       else {
-        log.d(`GET ${decodedUrl}, looking for tag`);
-        const result = await fetch(decodedUrl);
-
-        if (!result.ok) {
-          log.d("Not ok");
-          const text = await result.text();
-          log.d(text);
-          throw new Error(text);
-        }
+        log.d(`GET ${url}, looking for tag`);
+        const result = await fetch(url);
 
         log.v(JSON.stringify(result));
-        const lnurlObject: LNUrlRequest = await result.json();
+        let lnurlObject: LNUrlRequest | ILNUrlError;
+        try {
+          lnurlObject = await result.json();
+        } catch (e) {
+          log.d("", [e]);
+          throw new Error("Unable to parse message from the server");
+        }
+        log.d("response", [lnurlObject]);
+
+        if (isLNUrlPayResponseError(lnurlObject)) {
+          throw new Error(lnurlObject.reason);
+        }
+
         log.v(JSON.stringify(lnurlObject));
         if (lnurlObject.tag === "channelRequest") {
           type = "channelRequest";
-        }
-        else if (lnurlObject.tag === "withdrawRequest") {
+        } else if (lnurlObject.tag === "withdrawRequest") {
           type = "withdrawRequest";
-        }
-        else if (lnurlObject.tag === "payRequest") {
+        } else if (lnurlObject.tag === "payRequest") {
           type = "payRequest";
-        }
-        else {
+        } else {
           throw "unknown";
         }
         log.d(`Found tag ${lnurlObject.tag}`);
@@ -196,15 +310,13 @@ export const lnUrl: ILNUrlModel = {
       actions.setType(type);
       return type;
     } catch (e) {
-      log.e("Error reading LNURL", [e]);
-      return "error";
+      throw e;
     }
   }),
 
-  doChannelRequest: thunk(async (_, _2, { getStoreState, getState, injections }) => {
+  doChannelRequest: thunk(async (_, _2, { getStoreState, getState }) => {
     const type = getState().type;
     const lnUrlObject = getState().lnUrlObject;
-    const connectPeer = injections.lndMobile.index.connectPeer;
 
     if (type === "channelRequest" && lnUrlObject && lnUrlObject.tag === "channelRequest") {
       log.i("Processing channelRequest");
@@ -215,24 +327,39 @@ export const lnUrl: ILNUrlModel = {
       const localPubkey = getStoreState().lightning.nodeInfo!.identityPubkey;
       const [pubkey, host] = lnUrlObject.uri.split("@");
       try {
-        await connectPeer(pubkey, host);
-      } catch (e) { }
+        await connectPeer({
+          addr: {
+            pubkey,
+            host,
+          },
+        });
+      } catch (e) {}
       const request = `${lnUrlObject.callback}?k1=${lnUrlObject.k1}&remoteid=${localPubkey}&private=1`;
-      const result = await fetch(request);
-      const response: ILNUrlChannelRequestResponse = await result.json();
-      log.v(JSON.stringify(response));
 
-      if (response.status === "OK") {
-        return true;
+      const result = await fetch(request);
+      log.v(JSON.stringify(result));
+
+      let response: ILNUrlChannelRequestResponse | ILNUrlError;
+      try {
+        response = await result.json();
+      } catch (e) {
+        log.d("", [e]);
+        throw new Error("Unable to parse message from the server");
       }
-      throw new Error(response.reason!);
-    }
-    else {
-      throw new Error("Requirements not satisfied, type must be channelRequest and lnUrlObject must be set");
+      log.d("response", [response]);
+
+      if (isLNUrlPayResponseError(response)) {
+        throw new Error(response.reason);
+      }
+      return true;
+    } else {
+      throw new Error(
+        "Requirements not satisfied, type must be channelRequest and lnUrlObject must be set",
+      );
     }
   }),
 
-  doAuthRequest: thunk(async (_, _2, { getStoreState, getState, injections }) => {
+  doAuthRequest: thunk(async (_, _2, { getStoreState, getState }) => {
     const type = getState().type;
     const lnUrlStr = getState().lnUrlStr;
     const lnUrlObject = getState().lnUrlObject;
@@ -245,8 +372,12 @@ export const lnUrl: ILNUrlModel = {
       }
 
       // 1. The following canonical phrase is defined: [...].
+      const LNURLAUTH_CANONICAL_PHRASE =
+        "DO NOT EVER SIGN THIS TEXT WITH YOUR PRIVATE KEYS! IT IS ONLY USED FOR DERIVATION OF LNURL-AUTH HASHING-KEY, DISCLOSING ITS SIGNATURE WILL COMPROMISE YOUR LNURL-AUTH IDENTITY AND MAY LEAD TO LOSS OF FUNDS!";
       // 2. LN WALLET obtains an RFC6979 deterministic signature of sha256(utf8ToBytes(canonical phrase)) using secp256k1 with node private key.
-      const signature = await injections.lndMobile.wallet.signMessageNodePubkey(stringToUint8Array(LNURLAUTH_CANONICAL_PHRASE));
+      const signature = await signMessage({
+        msg: stringToUint8Array(LNURLAUTH_CANONICAL_PHRASE),
+      });
       // 3. LN WALLET defines hashingKey as PrivateKey(sha256(obtained signature)).
       const hashingKey = new sha256Hash().update(stringToUint8Array(signature.signature)).digest();
       // 4. SERVICE domain name is extracted from auth LNURL and then service-specific linkingPrivKey is defined as PrivateKey(hmacSha256(hashingKey, service domain name)).
@@ -258,152 +389,20 @@ export const lnUrl: ILNUrlModel = {
 
       // Sign the message
       const signedMessage = secp256k1.ecdsaSign(hexToUint8Array(lnUrlObject.k1), linkingKeyPriv);
-      const signedMessageDER = secp256k1.signatureExport(signedMessage.signature)
-
-      /*
-      // FOLLOWS THE LNURL-AUTH SPECIFICATION
-      // https://github.com/btcontract/lnurl-rfc/blob/master/lnurl-auth.md
-      // Key derivation for Bitcoin wallets:
-      // 1. There exists a private hashingKey which is derived by user LN WALLET using m/138'/0 path.
-      const hashingKey = await injections.lndMobile.wallet.derivePrivateKey(138, 0);
-      // const hashingKeyPub = await injections.lndMobile.wallet.deriveKey(138, 0);
-      // 2. LN SERVICE domain name is extracted from login LNURL and then hashed using hmacSha256(hashingKey, service domain name).
-      const domain = getDomainFromURL(lnUrlStr);
-      const hmac = new sha256HMAC(hashingKey.rawKeyBytes);
-      const derivationMaterial = hmac.update(stringToUint8Array(domain)).digest();
-      // 3. First 16 bytes are taken from resulting hash and then turned into a sequence of 4 Long values which are in turn used
-      //    to derive a service-specific linkingKey using m/138'/<long1>/<long2>/<long3>/<long4> path
-      // ?? walletrpc.DerviceKey does not allow deriving from such specific path
-      // LN WALLET may choose to use a different derivation scheme but doing so will make it unportable.
-      // That is, users won't be able to switch to a different wallet and keep using a service bound to existing linkingKey.
-      // We cannot derive the correct key in lnd so we are taking the 4 first bytes from the derivationMaterial
-      // and using that instead
-      const first4 = derivationMaterial.slice(0, 4);
-      const keyIndex = Long.fromBytesBE(first4 as unknown as number[], true).toNumber();
-      const linkingKey = await injections.lndMobile.wallet.derivePrivateKey(138, keyIndex);
-      log.d("key derived from family and index", [linkingKey.rawKeyBytes, 138, keyIndex]);
-
-      // Wallet to service interaction flow:
-      // 1, 2 omitted
-      // 3. Once accepted, user LN WALLET signs k1 on secp256k1 using linkingPrivKey and DER-encodes the signature.
-      const signedMessage = secp256k1.ecdsaSign(hexToUint8Array(lnUrlObject.k1), linkingKey.rawKeyBytes);
       const signedMessageDER = secp256k1.signatureExport(signedMessage.signature);
-      const linkingKeyPub = secp256k1.publicKeyCreate(linkingKey.rawKeyBytes, true);
-
-      // const signedMessageDER = (await signMessage(138, keyIndex, hexToUint8Array(lnUrlObject.k1))).signature;
-      // const linkingKeyPub = (await deriveKey(138, keyIndex)).rawKeyBytes;
-      // log.d("signedMessageDER", [signedMessageDER]);
-      // log.d("linkingKeyPub", [linkingKeyPub]);
-      */
 
       //    LN WALLET Then issues a GET to LN SERVICE using
       //    <LNURL_hostname_and_path>?<LNURL_existing_query_parameters>&sig=<hex(sign(k1.toByteArray, linkingPrivKey))>&key=<hex(linkingKey)>
-      const url = (
+      const url =
         lnUrlStr +
         `&sig=${bytesToHexString(signedMessageDER)}` +
-        `&key=${bytesToHexString(linkingKeyPub)}`
-      );
+        `&key=${bytesToHexString(linkingKeyPub)}`;
       log.d("url", [url]);
       // 4 omitted
       const result = await fetch(url);
       log.d("result", [JSON.stringify(result)]);
-      let response: ILNUrlAuthResponse;
-      try {
-        response = await result.json();
-      } catch (e) {
-        log.d("", [e]);
-        throw new Error("Unable to parse message from the server");
-      }
-      log.d("response", [response]);
 
-      if (response.status === "OK") {
-        return true;
-      }
-      throw new Error(response.reason!);
-    }
-    else {
-      throw new Error("Requirements not satisfied, type must be login and lnUrlObject must be set");
-    }
-  }),
-
-  doWithdrawRequest: thunk(async (_, { satoshi }, { getStoreActions, getState, injections }) => {
-    const type = getState().type;
-    const lnUrlStr = getState().lnUrlStr;
-    const lnUrlObject = getState().lnUrlObject;
-
-    if (lnUrlStr && type === "withdrawRequest" && lnUrlObject && lnUrlObject.tag === "withdrawRequest") {
-      // 5. Once accepted by the user, LN WALLET sends a GET to LN SERVICE in the form of <callback>?k1=<k1>&pr=<lightning invoice, ...>
-      const listener = LndMobileEventEmitter.addListener("SubscribeInvoices", async (e) => {
-        log.d("SubscribeInvoices event", [e]);
-        listener.remove();
-
-        const invoice = injections.lndMobile.wallet.decodeInvoiceResult(e.data);
-
-        const url = `${lnUrlObject.callback}?k1=${lnUrlObject.k1}&pr=${invoice.paymentRequest}`;
-        log.d("url", [url]);
-        const result = await fetch(url);
-        log.d("result", [JSON.stringify(result)]);
-        let response: ILNUrlWithdrawResponse;
-        try {
-          response = await result.json();
-        } catch (e) {
-          log.d("", [e]);
-          throw new Error("Unable to parse message from the server");
-        }
-        log.d("response", [response]);
-
-        if (response.status === "OK") {
-          return true;
-        }
-        throw new Error(response.reason!);
-      });
-
-      const r = await getStoreActions().receive.addInvoice({
-        description: lnUrlObject.defaultDescription,
-        sat: satoshi,
-        tmpData: {
-          website: getDomainFromURL(lnUrlStr),
-          type: "LNURL",
-          payer: null,
-        }
-      });
-      log.d("r", [r]);
-      return true;
-    }
-    else {
-      throw new Error("Requirements not satisfied, type must be login and lnUrlObject must be set");
-    }
-  }),
-
-  doPayRequest: thunk(async (_, payload, { getStoreActions, getState }) => {
-    const type = getState().type;
-    const lnUrlStr = getState().lnUrlStr;
-    const lnUrlObject = getState().lnUrlObject;
-
-    if (lnUrlStr && type === "payRequest" && lnUrlObject && lnUrlObject.tag === "payRequest") {
-      // 5. LN WALLET makes a GET request using
-      // <callback>?amount=<milliSatoshi>&fromnodes=<nodeId1,nodeId2,...>
-      // (we're skipping fromnodes)
-      let callback = lnUrlObject.callback;
-      let firstSeparator = lnUrlObject.callback.includes("?") ? "&" : "?"
-      callback = `${callback}${firstSeparator}amount=${payload.msat.toString()}`;
-      if (payload.comment) {
-        callback = `${callback}&comment=${payload.comment}`;
-      }
-
-      const result = await fetch(callback);
-      log.d("result", [JSON.stringify(result)]);
-      if (!result.ok) {
-        let error;
-        try {
-          error = await result.json();
-        } catch {
-          log.i("error", [result]);
-          throw new Error("Could not pay");
-        }
-        throw new Error(error.reason ?? "Could not pay");
-      }
-      let response: ILNUrlPayResponse | ILNUrlPayResponseError;
+      let response: ILNUrlAuthResponse | ILNUrlError;
       try {
         response = await result.json();
       } catch (e) {
@@ -416,69 +415,274 @@ export const lnUrl: ILNUrlModel = {
         throw new Error(response.reason);
       }
 
+      return true;
+    } else {
+      throw new Error("Requirements not satisfied, type must be login and lnUrlObject must be set");
+    }
+  }),
+
+  doWithdrawRequest: thunk(async (_, { satoshi }, { getStoreActions, getStoreState, getState }) => {
+    const type = getState().type;
+    const lnUrlStr = getState().lnUrlStr;
+    const lnUrlObject = getState().lnUrlObject;
+
+    const dunderEnabled = getStoreState().settings.dunderEnabled;
+
+    if (dunderEnabled) {
+      await getStoreActions().blixtLsp.ondemandChannel.checkOndemandChannelService();
+    }
+
+    const remoteBalance = getStoreState().channel.remoteBalance;
+    const shouldUseDunder =
+      dunderEnabled &&
+      getStoreState().blixtLsp.ondemandChannel.serviceActive &&
+      ((getStoreState().lightning.rpcReady && getStoreState().channel.channels.length === 0) ||
+        remoteBalance - 5000n < satoshi); // Not perfect...
+
+    if (
+      lnUrlStr &&
+      type === "withdrawRequest" &&
+      lnUrlObject &&
+      lnUrlObject.tag === "withdrawRequest"
+    ) {
+      const promise = new Promise<boolean>(async (resolve, reject) => {
+        if (shouldUseDunder) {
+          await getStoreActions().blixtLsp.ondemandChannel.connectToService(); // TODO check if it worked
+          const serviceStatus = await getStoreActions().blixtLsp.ondemandChannel.serviceStatus();
+          const result = await dunderPrompt(
+            serviceStatus.approxFeeSat,
+            getStoreState().settings.bitcoinUnit,
+            getStoreState().fiat.currentRate,
+            getStoreState().settings.fiatUnit,
+          );
+          if (!result) {
+            return resolve(false);
+          }
+
+          try {
+            await getStoreActions().blixtLsp.ondemandChannel.addInvoice({
+              sat: satoshi,
+              description: lnUrlObject.defaultDescription,
+            });
+          } catch (error: any) {
+            Alert.alert("Error", error.message);
+            resolve(false);
+          }
+        } else {
+          const r = getStoreActions().receive.addInvoice({
+            description: lnUrlObject.defaultDescription,
+            sat: satoshi,
+            tmpData: {
+              website: getDomainFromURL(lnUrlStr),
+              type: "LNURL",
+              payer: null,
+            },
+          });
+        }
+
+        // 5. Once accepted by the user, LN WALLET sends a GET to LN SERVICE in the form of <callback>?k1=<k1>&pr=<lightning invoice, ...>
+        const unsubscribe = subscribeInvoices(
+          {},
+          async (invoice) => {
+            try {
+              unsubscribe();
+
+              let firstSeparator = lnUrlObject.callback.includes("?") ? "&" : "?";
+              const url = `${lnUrlObject.callback}${firstSeparator}k1=${lnUrlObject.k1}&pr=${invoice.paymentRequest}`;
+              log.d("url", [url]);
+
+              const result = await fetch(url);
+              log.d("result", [JSON.stringify(result)]);
+
+              let response: ILNUrlWithdrawResponse | ILNUrlError;
+              try {
+                response = await result.json();
+              } catch (e) {
+                log.d("", [e]);
+                return reject(new Error("Unable to parse message from the server"));
+              }
+              log.d("response", [response]);
+
+              if (isLNUrlPayResponseError(response)) {
+                return reject(new Error(response.reason));
+              }
+
+              resolve(true);
+            } catch (error: any) {
+              reject(new Error(error.message));
+            }
+          },
+          (error) => {
+            log.e("subscribeInvoices error", [error]);
+          },
+        );
+      });
+
+      return promise;
+    } else {
+      throw new Error("Requirements not satisfied, type must be login and lnUrlObject must be set");
+    }
+  }),
+
+  doPayRequest: thunk(async (actions, payload, { getStoreActions, getState }) => {
+    const type = getState().type;
+    const lnUrlStr = getState().lnUrlStr;
+    const lnUrlObject = getState().lnUrlObject;
+
+    if (lnUrlStr && type === "payRequest" && lnUrlObject && lnUrlObject.tag === "payRequest") {
+      // 5. LN WALLET makes a GET request using
+      // <callback>?amount=<milliSatoshi>&fromnodes=<nodeId1,nodeId2,...>
+      // (we're skipping fromnodes)
+      const gotPayerData = !!payload.payerData;
+
+      let callback = lnUrlObject.callback;
+      let firstSeparator = lnUrlObject.callback.includes("?") ? "&" : "?";
+      callback = `${callback}${firstSeparator}amount=${payload.msat.toString()}`;
+      if (payload.comment) {
+        callback = `${callback}&comment=${encodeURIComponent(payload.comment)}`;
+      }
+      if (payload.payerData) {
+        callback = `${callback}&payerdata=${encodeURIComponent(JSON.stringify(payload.payerData))}`;
+      }
+      log.d("callback", [callback]);
+
+      const result = await fetch(callback);
+      log.d("result", [JSON.stringify(result)]);
+
+      let response: ILNUrlPayResponse | ILNUrlPayResponseError;
+      try {
+        response = await result.json();
+      } catch (e) {
+        log.d("", [e]);
+        throw new Error("Unable to parse message from the server.");
+      }
+      log.d("response", [response]);
+
+      if (isLNUrlPayResponseError(response)) {
+        throw new Error(response.reason);
+      }
+
       // 6. omitted
 
+      if (!response.pr || response.pr.length === 0) {
+        throw new Error("Response from the server did not contain an invoice.");
+      }
+
       try {
-        const paymentRequest: lnrpc.PayReq = await getStoreActions().send.setPayment({
+        log.d("pr", [response.pr]);
+        const paymentRequest: PayReq = await getStoreActions().send.setPayment({
           paymentRequestStr: response.pr,
           extraData: {
             lnurlPayResponse: response,
             payer: null,
             type: "LNURL",
             website: getDomainFromURL(lnUrlStr),
+            lightningAddress: payload.lightningAddress,
+            lud16IdentifierMimeType: payload.lud16IdentifierMimeType,
+            lnurlPayTextPlain: payload.metadataTextPlain,
           },
         });
 
-        // 7. LN WALLET Verifies that h tag in provided invoice is a
-        //    hash of metadata string converted to byte array in UTF-8 encoding.
-        const descriptionHash = paymentRequest.descriptionHash;
-        if (!descriptionHash) {
-          console.log(descriptionHash);
-          throw new Error("Invoice invalid. Description hash is missing.");
-        }
-
-        log.d("metadata", [lnUrlObject.metadata]);
-        log.d("Check match", [
-          descriptionHash,
-          bytesToHexString(new sha256Hash().update(stringToUint8Array(lnUrlObject.metadata)).digest()),
-        ]);
-
-        // 8. LN WALLET Verifies that amount in provided invoice equals an amount previously specified by user.
-        if (paymentRequest.numMsat.notEquals(payload.msat)) {
+        // 7. LN WALLET Verifies that amount in provided invoice equals an amount previously specified by user.
+        if (paymentRequest.numMsat.toString() !== payload.msat.toString()) {
           throw new Error("Received invoice does not match decided cost");
         }
 
-        // 9. If routes array is not empty: verifies signature for every provided ChannelUpdate, may use these routes if fee levels are acceptable.
+        // 8. If routes array is not empty: verifies signature for every provided ChannelUpdate, may use these routes if fee levels are acceptable.
         // TODO...
 
-        // 10. ommitted
+        // 9. omitted
 
-        // 11. LN WALLET pays the invoice, no additional user confirmation is required at this point.
+        // 10. LN WALLET pays the invoice, no additional user confirmation is required at this point.
         // Jumping back to component:
+        actions.setPayRequestResponse(response);
         return response;
       } catch (e) {
         log.i("Error setting invoice to send subsystem", [e]);
         throw e;
       }
-    }
-    else {
+    } else {
       throw new Error("Requirements not satisfied, type must be login and lnUrlObject must be set");
     }
   }),
 
-  setLNUrlStr: action((state, payload) => { state.lnUrlStr = payload }),
-  setType: action((state, payload) => { state.type = payload }),
-  setLNUrlObject: action((state, payload) => { state.lnUrlObject = payload }),
+  setLNUrlStr: action((state, payload) => {
+    state.lnUrlStr = payload;
+  }),
+  setLightningAddress: action((state, payload) => {
+    state.lightningAddress = payload;
+  }),
+  setType: action((state, payload) => {
+    state.type = payload;
+  }),
+  setLNUrlObject: action((state, payload) => {
+    state.lnUrlObject = payload;
+  }),
+  setPayRequestResponse: action((state, payload) => {
+    state.payRequestResponse = payload;
+  }),
 
   clear: action((state) => {
     state.lnUrlStr = undefined;
+    state.lightningAddress = undefined;
     state.type = undefined;
     state.lnUrlObject = undefined;
+    state.payRequestResponse = undefined;
+  }),
+
+  resolveLightningAddress: thunk(async (actions, lightningAddress) => {
+    actions.clear();
+    // https://github.com/fiatjaf/lnurl-rfc/blob/luds/16.md
+    // The idea here is that a SERVICE can offer human-readable addresses for users or specific internal endpoints
+    // that use the format <username>@<domainname>, e.g. satoshi@bitcoin.org. A user can then type these on a WALLET.
+    //
+    // Upon seeing such an address, WALLET makes a GET request to
+    // https://<domain>/.well-known/lnurlp/<username> endpoint if domain is clearnet or http://<domain>/.well-known/lnurlp/<name> if domain is onion.
+    // For example, if the address is satoshi@bitcoin.org, the request is to be made to https://bitcoin.org/.well-known/lnurlp/satoshi.
+    const [username, domain] = lightningAddress.toLowerCase().split("@");
+    if (domain == undefined) {
+      throw new Error("Invalid Lightning Address");
+    }
+
+    // Normal LNURL fetch request follows:
+    const lnurlPayUrl = `https://${domain}/.well-known/lnurlp/${username}`;
+    actions.setLNUrlStr(lnurlPayUrl);
+    actions.setLightningAddress(lightningAddress.toLowerCase());
+
+    let lnurlObject: ILNUrlPayRequest | ILNUrlPayResponseError;
+    try {
+      const result = await fetch(lnurlPayUrl);
+      if (result.status !== 200) {
+        throw new Error("Failed to fetch data from server: " + result.statusText);
+      }
+
+      const lnurlText = await result.text();
+      log.i("lnurl text", [lnurlText]);
+      lnurlObject = JSON.parse(lnurlText);
+    } catch (e: any) {
+      throw new Error("Unable to parse message from the server: " + e.message);
+    }
+    log.d("response", [lnurlObject]);
+
+    if (isLNUrlPayResponseError(lnurlObject)) {
+      log.e("Got error");
+      throw new Error(lnurlObject.reason);
+    }
+
+    log.d("lnurl object ", [lnurlObject]);
+    if (lnurlObject.tag === "payRequest") {
+      actions.setType("payRequest");
+      actions.setLNUrlObject(lnurlObject);
+      return true;
+    }
+    return false;
   }),
 
   lnUrlStr: undefined,
+  lightningAddress: undefined,
   type: undefined,
   lnUrlObject: undefined,
+  payRequestResponse: undefined,
 };
 
 const parseQueryParams = (url: string) => {
@@ -504,15 +708,9 @@ const parseQueryParams = (url: string) => {
 };
 
 const tryLNURLType = (subject: string): subject is LNURLType => {
-  return (
-    subject === "channelRequest" ||
-    subject === "login"
-  );
-}
+  return subject === "channelRequest" || subject === "login";
+};
 
 const isLNUrlPayResponseError = (subject: any): subject is ILNUrlPayResponseError => {
-  return (
-    typeof subject === "object" &&
-    subject.status && subject.status === "ERROR"
-  );
-}
+  return typeof subject === "object" && subject.status && subject.status === "ERROR";
+};

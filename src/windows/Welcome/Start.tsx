@@ -1,9 +1,11 @@
-import React, { useState, useRef } from "react";
-import { StyleSheet, StatusBar, Alert, NativeModules } from "react-native";
-import { Text, H1, Button, View, Spinner, Icon } from "native-base";
+import React, { JSX, useRef, useState } from "react";
+import { StyleSheet, StatusBar, SafeAreaView, Platform } from "react-native";
+import DialogAndroid from "react-native-dialogs";
+import { Text, H1, View, Spinner, Icon } from "native-base";
+import { Button } from "../../components/Button";
 import { useStoreActions, useStoreState } from "../../state/store";
 import * as Animatable from "react-native-animatable";
-import Menu, { MenuItem } from "react-native-material-menu";
+import { Menu, MenuOptions, MenuOption, MenuTrigger } from "react-native-popup-menu";
 
 import { CommonActions } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -12,75 +14,257 @@ import { WelcomeStackParamList } from "./index";
 import Container from "../../components/Container";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { PLATFORM } from "../../utils/constants";
+import { getStatusBarHeight } from "react-native-status-bar-height";
+
+import { useTranslation } from "react-i18next";
+import { languages, namespaces } from "../../i18n/i18n.constants";
+import { toast } from "../../utils";
+import { Alert } from "../../utils/alert";
+import { restartAppOrNotify, showRestartNeededAlert } from "../../utils/restart-app";
 
 interface IAnimatedH1Props {
   children: JSX.Element | string;
 }
 function AnimatedH1({ children }: IAnimatedH1Props) {
-  const AnimH1 = Animatable.createAnimatableComponent(H1);
   return (
-    <AnimH1 style={style.header} duration={650} animation="fadeInDown" useNativeDriver={true}>
-      {children}
-    </AnimH1>
+    <Animatable.View duration={650} animation="fadeInDown">
+      <H1 style={style.header}>{children}</H1>
+    </Animatable.View>
   );
-};
+}
 
 interface IAnimatedViewProps {
   children: JSX.Element[];
 }
 function AnimatedView({ children }: IAnimatedViewProps) {
   return (
-    <Animatable.View duration={660} style={style.buttons} animation="fadeInUp" useNativeDriver={true}>
+    <Animatable.View duration={660} style={style.buttons} animation="fadeInUp">
       {children}
     </Animatable.View>
   );
 }
 
-export interface IStartProps {
-  navigation: StackNavigationProp<WelcomeStackParamList, "Start">;
-}
-export default function Start({ navigation }: IStartProps) {
-  const setHoldonboarding = useStoreActions((state) => state.setHoldOnboarding);
+function TopMenu({ navigation, setCreateWalletLoading }: IStartProps) {
+  const t = useTranslation(namespaces.welcome.start).t;
+  const torEnabled = useStoreState((store) => store.torEnabled);
+  const changeTorEnabled = useStoreActions((store) => store.settings.changeTorEnabled);
+  const neutrinoPeers = useStoreState((store) => store.settings.neutrinoPeers);
+  const changeNeutrinoPeers = useStoreActions((store) => store.settings.changeNeutrinoPeers);
+  const writeConfig = useStoreActions((store) => store.writeConfig);
+  const changeLanguage = useStoreActions((store) => store.settings.changeLanguage);
+  const currentLanguage = useStoreState((store) => store.settings.language);
   const generateSeed = useStoreActions((store) => store.generateSeed);
   const createWallet = useStoreActions((store) => store.createWallet);
   const setSyncEnabled = useStoreActions((state) => state.scheduledSync.setSyncEnabled);
-  const changeScheduledSyncEnabled = useStoreActions((state) => state.settings.changeScheduledSyncEnabled);
-  const [createWalletLoading, setCreateWalletLoading] = useState(false);
-  const torEnabled = useStoreState((store) => store.torEnabled);
-  const changeTorEnabled = useStoreActions((store) => store.settings.changeTorEnabled);
-  const menu = useRef<Menu>();
+  const changeScheduledSyncEnabled = useStoreActions(
+    (state) => state.settings.changeScheduledSyncEnabled,
+  );
 
-  const onCreateWalletPress = async () => {
-    try {
-      await generateSeed(undefined);
-      Alert.alert(
-        "Warning",
-`Blixt Wallet is still at an early stage of development.
+  const onCreateWalletWithPassphrasePress = async () => {
+    Alert.prompt(t("createWalletWithPassphrase.title"), "", [
+      {
+        text: t("buttons.cancel", { ns: namespaces.common }),
+        style: "cancel",
+        onPress: () => {},
+      },
+      {
+        text: t("general.name.dialog.accept", { ns: namespaces.settings.settings }),
+        onPress: async (text?: string) => {
+          try {
+            if (!text || text.trim().length === 0) {
+              toast(t("createWalletWithPassphrase.invalidMessage"), undefined, "danger");
+              return;
+            }
 
-If you use this wallet, make sure you understand that you may lose your funds.
+            const hasLeadingTrailingSpaces = text.trim() !== text;
 
-There is currently no WatchTower support to watch your channels while you are offline.`,
-        [{
-          text: "I am reckless, continue",
-          onPress: async  () => {
+            if (!!hasLeadingTrailingSpaces) {
+              toast(
+                t("createWalletWithPassphrase.noLeadingTrailingSpaces"),
+                undefined,
+                "danger",
+              );
+              return;
+            }
+
+            await generateSeed(text.trim());
             setCreateWalletLoading(true);
-            await createWallet();
+            await createWallet({ init: { aezeedPassphrase: text || undefined } });
             await setSyncEnabled(true); // TODO test
             await changeScheduledSyncEnabled(true);
 
             navigation.dispatch(
               CommonActions.reset({
                 index: 0,
-                routes: [
-                  { name: "Loading" },
-                ],
-              })
+                routes: [{ name: "Loading" }],
+              }),
             );
+          } catch (error: any) {
+            toast(error.message, undefined, "danger");
+            setCreateWalletLoading(false);
           }
-        }],
-      );
-    } catch (e) {
+        },
+      },
+    ]);
+  };
+
+  const toggleTorEnabled = async () => {
+    changeTorEnabled(!torEnabled);
+    await restartAppOrNotify({ stopDaemonFirst: false });
+  };
+
+  const onSetBitcoinNodePress = async () => {
+    Alert.prompt(
+      t("bitcoinNetwork.node.setDialog.title", { ns: namespaces.settings.settings }),
+      t("bitcoinNetwork.node.setDialog.info", { ns: namespaces.settings.settings }) +
+        "\n\n" +
+        t("bitcoinNetwork.node.setDialog.leaveBlankToSearch", { ns: namespaces.settings.settings }),
+      [
+        {
+          text: t("buttons.cancel", { ns: namespaces.common }),
+          style: "cancel",
+          onPress: () => {},
+        },
+        {
+          text: t("bitcoinNetwork.node.setDialog.title", { ns: namespaces.settings.settings }),
+          onPress: async (text?: string) => {
+            if (text === neutrinoPeers.join(",")) {
+              return;
+            }
+
+            if (text) {
+              const neutrinoPeers = text.split(",").map((n) => n.trim());
+              await changeNeutrinoPeers(neutrinoPeers);
+            } else {
+              await changeNeutrinoPeers([]);
+            }
+            await writeConfig();
+
+            restartNeeded();
+          },
+        },
+      ],
+      "plain-text",
+      neutrinoPeers.join(",") ?? "",
+    );
+  };
+
+  const restartNeeded = () => {
+    showRestartNeededAlert({ stopDaemonFirst: false });
+  };
+
+  const onLanguageChange = async () => {
+    if (PLATFORM === "android") {
+      const { selectedItem } = await DialogAndroid.showPicker(null, null, {
+        positiveText: null,
+        negativeText: t("buttons.cancel", { ns: namespaces.common }),
+        type: DialogAndroid.listRadio,
+        selectedId: currentLanguage,
+        items: Object.keys(languages)
+          .sort()
+          .map((key) => {
+            return {
+              label: languages[key].name,
+              id: languages[key].id,
+            };
+          }),
+      });
+      if (selectedItem) {
+        await changeLanguage(selectedItem.id);
+      }
+    } else {
+      navigation.navigate("ChangeLanguage", {
+        title: t("language.title"),
+        data: Object.keys(languages)
+          .sort()
+          .map((key) => {
+            return {
+              title: languages[key].name,
+              value: languages[key].id,
+            };
+          }),
+        onPick: async (lang: string) => {
+          await changeLanguage(lang);
+        },
+      });
+    }
+  };
+
+  return (
+    <View style={style.menuDotsIcon}>
+      <Menu>
+        <MenuTrigger>
+          <Icon type="Entypo" name="dots-three-horizontal" />
+        </MenuTrigger>
+        <MenuOptions customStyles={menuOptionsStyles}>
+          {["android", "ios"].includes(PLATFORM) && (
+            <MenuOption
+              onSelect={toggleTorEnabled}
+              text={torEnabled ? t("menu.disableTor") : t("menu.enableTor")}
+            />
+          )}
+          <MenuOption onSelect={onSetBitcoinNodePress} text={t("menu.setBitcoinNode")} />
+          <MenuOption onSelect={onLanguageChange} text={t("language.title")} />
+          <MenuOption
+            onSelect={onCreateWalletWithPassphrasePress}
+            text={t("menu.createWalletWithPassphrase")}
+          />
+        </MenuOptions>
+      </Menu>
+    </View>
+  );
+}
+
+export interface IStartProps {
+  navigation: StackNavigationProp<WelcomeStackParamList>;
+  setCreateWalletLoading: (loading: boolean) => void;
+}
+export default function Start({ navigation }: IStartProps) {
+  const t = useTranslation(namespaces.welcome.start).t;
+  const generateSeed = useStoreActions((store) => store.generateSeed);
+  const createWallet = useStoreActions((store) => store.createWallet);
+  const setSyncEnabled = useStoreActions((state) => state.scheduledSync.setSyncEnabled);
+  const changeScheduledSyncEnabled = useStoreActions(
+    (state) => state.settings.changeScheduledSyncEnabled,
+  );
+  const [createWalletLoading, setCreateWalletLoading] = useState(false);
+  const [createWalletPressLocked, setCreateWalletPressLocked] = useState(false);
+  const createWalletInFlightRef = useRef(false);
+  const createWalletBusy = createWalletLoading || createWalletPressLocked;
+
+  const onCreateWalletPress = async () => {
+    if (createWalletInFlightRef.current || createWalletBusy) {
+      return;
+    }
+
+    createWalletInFlightRef.current = true;
+    setCreateWalletPressLocked(true);
+
+    try {
+      await generateSeed(undefined);
+
+      try {
+        setCreateWalletLoading(true);
+        await createWallet();
+        await setSyncEnabled(true);
+        await changeScheduledSyncEnabled(true);
+
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "Loading" }],
+          }),
+        );
+      } catch (error: any) {
+        toast(error.message, undefined, "danger");
+        setCreateWalletLoading(false);
+        createWalletInFlightRef.current = false;
+        setCreateWalletPressLocked(false);
+      }
+    } catch (e: any) {
       Alert.alert(e.message);
+      createWalletInFlightRef.current = false;
+      setCreateWalletPressLocked(false);
     }
   };
 
@@ -88,25 +272,9 @@ There is currently no WatchTower support to watch your channels while you are of
     navigation.navigate("Restore");
   };
 
-  const showMenu = () => {
-    menu.current.show();
-  }
-
-  const toggleTorEnabled = async () => {
-    changeTorEnabled(!torEnabled);
-    menu.current.hide();
-    try {
-      // await NativeModules.LndMobile.stopLnd();
-      await NativeModules.LndMobileTools.killLnd();
-    } catch(e) {
-      console.log(e);
-    }
-    NativeModules.LndMobileTools.restartApp();
-  }
-
   return (
     <Container>
-      <View style={style.content}>
+      <SafeAreaView style={style.content}>
         <StatusBar
           backgroundColor="transparent"
           hidden={false}
@@ -114,53 +282,57 @@ There is currently no WatchTower support to watch your channels while you are of
           networkActivityIndicatorVisible={true}
           barStyle="light-content"
         />
-        {(!createWalletLoading && PLATFORM === "android") &&
-          <View style={style.menuDotsIcon}>
-            <Menu
-              ref={menu}
-              button={
-                <Icon
-                  type="Entypo"
-                  name="dots-three-horizontal"
-                  onPress={showMenu}
-                />
-              }
-            >
-              <MenuItem
-                onPress={toggleTorEnabled}
-                // style={{ backgroundColor: blixtTheme.gray }}
-                // textStyle={{ color: blixtTheme.light }}
-                textStyle={{ color: "#000" }}
-              >
-                {torEnabled ? "Disable" : "Enable"} Tor
-              </MenuItem>
-            </Menu>
-          </View>
-        }
-        {!createWalletLoading
-          ? <AnimatedH1>Welcome</AnimatedH1>
-          : <H1 style={style.header}>Welcome</H1>
-        }
-        {!createWalletLoading
-          ?
+
+        {!createWalletBusy && (
+          <TopMenu navigation={navigation} setCreateWalletLoading={setCreateWalletLoading} />
+        )}
+
+        {!createWalletLoading ? (
+          <AnimatedH1>{t("title")}</AnimatedH1>
+        ) : (
+          <H1 style={style.header}>{t("title")}</H1>
+        )}
+        {!createWalletBusy ? (
+          <>
             <AnimatedView>
               <Button style={style.button} onPress={onCreateWalletPress}>
-                {!createWalletLoading && <Text>Create Wallet</Text>}
+                {!createWalletLoading && <Text>{t("createWallet.title")}</Text>}
                 {createWalletLoading && <Spinner color={blixtTheme.light} />}
               </Button>
               <Button style={style.button} onPress={onRestoreWalletPress}>
-                <Text>Restore Wallet</Text>
+                <Text>{t("restoreWallet.title")}</Text>
               </Button>
             </AnimatedView>
-          :
-            <Spinner color={blixtTheme.light} />
-        }
-      </View>
+          </>
+        ) : (
+          <Spinner color={blixtTheme.light} />
+        )}
+      </SafeAreaView>
     </Container>
   );
-};
+}
 
-const iconTopPadding = StatusBar.currentHeight ?? 0;
+const iconTopPadding = (StatusBar.currentHeight ?? 0) + getStatusBarHeight(true);
+
+const menuOptionsStyles = {
+  optionsContainer: {
+    padding: 5,
+    borderRadius: 5,
+    shadowColor: blixtTheme.dark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    backgroundColor: blixtTheme.light,
+  },
+  optionWrapper: {
+    padding: 5,
+  },
+  optionText: {
+    fontSize: 16,
+    color: blixtTheme.dark,
+  },
+};
 
 const style = StyleSheet.create({
   content: {
@@ -185,5 +357,18 @@ const style = StyleSheet.create({
     position: "absolute",
     top: iconTopPadding + 16,
     right: 24,
+  },
+  languageButton: {
+    position: "absolute",
+    top: iconTopPadding + 16,
+    left: 24,
+  },
+  icon: {
+    fontSize: 22,
+    ...Platform.select({
+      web: {
+        marginRight: 5,
+      },
+    }),
   },
 });

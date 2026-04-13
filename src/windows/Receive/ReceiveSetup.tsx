@@ -1,9 +1,9 @@
 import React, { useState, useLayoutEffect, useEffect } from "react";
-import { Button, Icon, Text, Input, Spinner } from "native-base";
+import { Icon, Text, Spinner } from "native-base";
+import { Button } from "../../components/Button";
 import DialogAndroid from "react-native-dialogs";
 import { useDebounce } from "use-debounce";
 import { StackNavigationProp } from "@react-navigation/stack";
-import Long from "long";
 
 import { ReceiveStackParamList } from "./index";
 import { useStoreActions, useStoreState } from "../../state/store";
@@ -11,11 +11,15 @@ import BlixtForm from "../../components/Form";
 import { formatBitcoin, BitcoinUnits, IBitcoinUnits } from "../../utils/bitcoin-units";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import useBalance from "../../hooks/useBalance";
-import { MATH_PAD_NATIVE_ID, MAX_SAT_INVOICE, PLATFORM } from "../../utils/constants";
-import { toast } from "../../utils";
+import { MATH_PAD_NATIVE_ID, PLATFORM } from "../../utils/constants";
+import { hexToUint8Array, toast } from "../../utils";
 import { Keyboard } from "react-native";
 import Container from "../../components/Container";
 import { IFiatRates } from "../../state/Fiat";
+import Input from "../../components/Input";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 const MATH_PAD_HEIGHT = 44;
 
@@ -23,9 +27,12 @@ export interface IReceiveSetupProps {
   navigation: StackNavigationProp<ReceiveStackParamList, "ReceiveSetup">;
 }
 export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
+  const t = useTranslation(namespaces.receive.receiveSetup).t;
   const rpcReady = useStoreState((store) => store.lightning.rpcReady);
   const syncedToChain = useStoreState((store) => store.lightning.syncedToChain);
-  const invoiceSubscriptionStarted = useStoreState((store) => store.receive.invoiceSubscriptionStarted);
+  const invoiceSubscriptionStarted = useStoreState(
+    (store) => store.receive.invoiceSubscriptionStarted,
+  );
   const addInvoice = useStoreActions((store) => store.receive.addInvoice);
   const [description, setDescription] = useState<string>("");
   const bitcoinUnitKey = useStoreState((store) => store.settings.bitcoinUnit);
@@ -47,7 +54,14 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
   const [mathPadVisibleShortDebounce] = useDebounce(mathPadVisibleOriginal, 1, { leading: true });
   const [mathPadVisible] = useDebounce(mathPadVisibleOriginal, 100);
 
-  const [currentlyFocusedInput, setCurrentlyFocusedInput] = useState<"bitcoin" | "fiat" | "other">("other");
+  const [currentlyFocusedInput, setCurrentlyFocusedInput] = useState<"bitcoin" | "fiat" | "other">(
+    "other",
+  );
+
+  const customInvoicePreimageEnabled = useStoreState(
+    (store) => store.settings.customInvoicePreimageEnabled,
+  );
+  const [preimage, setPreimage] = useState<string>("");
 
   useEffect(() => {
     const keyboardShowListener = Keyboard.addListener("keyboardDidShow", (event) => {
@@ -62,12 +76,13 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
     return () => {
       keyboardShowListener.remove();
       keyboardHideListener.remove();
-    }
-  })
+    };
+  });
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: "Receive",
+      headerTitle: t("layout.title"),
+      headerBackTitle: t("buttons.back", { ns: namespaces.common }),
       headerShown: true,
     });
   }, [navigation]);
@@ -75,9 +90,8 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
   const onCreateInvoiceClick = async () => {
     try {
       setCreateInvoiceDisabled(true);
-      if (satoshiValue > MAX_SAT_INVOICE) {
-        throw new Error("Invoice amount cannot be higher than " + formatBitcoin(Long.fromNumber(MAX_SAT_INVOICE), bitcoinUnitKey));
-      }
+
+      const preimageBytes = preimage ? hexToUint8Array(preimage) : undefined;
 
       navigation.replace("ReceiveQr", {
         invoice: await addInvoice({
@@ -87,12 +101,13 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
             payer: payer || null,
             type: "NORMAL",
             website: null,
-          }
-        })
+          },
+          preimage: preimageBytes,
+        }),
       });
-    } catch (e) {
+    } catch (e: any) {
       setCreateInvoiceDisabled(false);
-      toast(`Error: ${e.message}`, 12000, "danger", "Okay");
+      toast(`${t("msg.error", { ns: namespaces.common })}: ${e.message}`, 12000, "danger", "Okay");
     }
   };
 
@@ -103,32 +118,36 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
     if (PLATFORM === "android") {
       const { selectedItem } = await DialogAndroid.showPicker(null, null, {
         positiveText: null,
-        negativeText: "Cancel",
+        negativeText: t("buttons.cancel", { ns: namespaces.common }),
         type: DialogAndroid.listRadio,
         selectedId: currentBitcoinUnit,
         items: [
           { label: BitcoinUnits.bitcoin.settings, id: "bitcoin" },
+          { label: BitcoinUnits.bip177.settings, id: "bip177" },
           { label: BitcoinUnits.bit.settings, id: "bit" },
+          { label: BitcoinUnits.sat.settings, id: "sat" },
           { label: BitcoinUnits.satoshi.settings, id: "satoshi" },
           { label: BitcoinUnits.milliBitcoin.settings, id: "milliBitcoin" },
-        ]
+        ],
       });
       if (selectedItem) {
         await changeBitcoinUnit(selectedItem.id);
       }
     } else {
       navigation.navigate("ChangeBitcoinUnit", {
-        title: "Change bitcoin unit",
+        title: t("form.amountBitcoin.change"),
         data: [
           { title: BitcoinUnits.bitcoin.settings, value: "bitcoin" },
+          { title: BitcoinUnits.bip177.settings, value: "bip177" },
           { title: BitcoinUnits.bit.settings, value: "bit" },
+          { title: BitcoinUnits.sat.settings, value: "sat" },
           { title: BitcoinUnits.satoshi.settings, value: "satoshi" },
           { title: BitcoinUnits.milliBitcoin.settings, value: "milliBitcoin" },
         ],
         onPick: async (currency) => await changeBitcoinUnit(currency as keyof IBitcoinUnits),
       });
     }
-  }
+  };
 
   // Fiat unit
   const fiatRates = useStoreState((store) => store.fiat.fiatRates);
@@ -138,21 +157,22 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
     if (PLATFORM === "android") {
       const { selectedItem } = await DialogAndroid.showPicker(null, null, {
         positiveText: null,
-        negativeText: "Cancel",
+        negativeText: t("buttons.cancel", { ns: namespaces.common }),
         type: DialogAndroid.listRadio,
         selectedId: currentFiatUnit,
         items: Object.entries(fiatRates).map(([currency]) => {
           return {
-            label: currency, id: currency
-          }
-        })
+            label: currency,
+            id: currency,
+          };
+        }),
       });
       if (selectedItem) {
         await changeFiatUnit(selectedItem.id);
       }
     } else {
       navigation.navigate("ChangeFiatUnit", {
-        title: "Change fiat unit",
+        title: t("form.amountFiat.change"),
         data: Object.entries(fiatRates).map(([currency]) => ({
           title: currency,
           value: currency as keyof IFiatRates,
@@ -161,108 +181,129 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
         searchEnabled: true,
       });
     }
+  };
+
+  const formItems = [
+    {
+      key: "AMOUNT_SAT",
+      title: `${t("form.amountBitcoin.title")} ${bitcoinUnit.nice}`,
+      component: (
+        <>
+          <Input
+            onSubmitEditing={() => setMathPadVisible(false)}
+            testID="input-amount-sat"
+            onChangeText={onChangeBitcoinInput}
+            placeholder="0"
+            value={bitcoinValue !== undefined ? bitcoinValue.toString() : undefined}
+            keyboardType="numeric"
+            returnKeyType="done"
+            onFocus={() => {
+              setMathPadVisible(true);
+              setCurrentlyFocusedInput("bitcoin");
+            }}
+            onBlur={() => {
+              // setMathPadVisible(false);
+            }}
+            inputAccessoryViewID={MATH_PAD_NATIVE_ID}
+          />
+          <Icon
+            type="Foundation"
+            name="bitcoin-circle"
+            onPress={onPressChangeBitcoinUnit}
+            style={{ fontSize: 31, marginRight: 1 }}
+          />
+        </>
+      ),
+    },
+    {
+      key: "AMOUNT_FIAT",
+      title: `${t("form.amountFiat.title")} ${fiatUnit}`,
+      component: (
+        <>
+          <Input
+            onSubmitEditing={() => setMathPadVisible(false)}
+            onChangeText={onChangeFiatInput}
+            placeholder="0.00"
+            value={dollarValue !== undefined ? dollarValue.toString() : undefined}
+            keyboardType="numeric"
+            returnKeyType="done"
+            onFocus={() => {
+              setMathPadVisible(true);
+              setCurrentlyFocusedInput("fiat");
+            }}
+            onBlur={() => {
+              // setMathPadVisible(false);
+            }}
+            inputAccessoryViewID={MATH_PAD_NATIVE_ID}
+          />
+          <Icon type="FontAwesome" name="money" onPress={onPressChangeFiatUnit} />
+        </>
+      ),
+    },
+    {
+      key: "PAYER",
+      title: t("form.payer.title"),
+      component: (
+        <Input
+          onChangeText={setPayer}
+          placeholder={t("form.payer.placeholder")}
+          onFocus={() => setMathPadVisible(false)}
+          value={payer}
+        />
+      ),
+    },
+    {
+      key: "MESSAGE",
+      title: t("form.description.title"),
+      component: (
+        <Input
+          testID="input-message"
+          onChangeText={setDescription}
+          placeholder={t("form.description.placeholder")}
+          onFocus={() => setMathPadVisible(false)}
+          value={description}
+        />
+      ),
+    },
+  ];
+
+  if (customInvoicePreimageEnabled) {
+    formItems.push({
+      key: "PREIMAGE",
+      title: "Preimage",
+      component: (
+        <Input
+          testID="input-message"
+          onChangeText={setPreimage}
+          placeholder={t("form.preimage.placeholder")}
+          onFocus={() => setMathPadVisible(false)}
+          value={preimage}
+        />
+      ),
+    });
   }
 
-  const formItems = [{
-    key: "AMOUNT_SAT",
-    title: `Amount ${bitcoinUnit.nice}`,
-    component: (
-      <>
-        <Input
-          onSubmitEditing={() => setMathPadVisible(false)}
-          testID="input-amount-sat"
-          onChangeText={onChangeBitcoinInput}
-          placeholder="0"
-          value={bitcoinValue !== undefined ? bitcoinValue.toString() : undefined}
-          keyboardType="numeric"
-          returnKeyType="done"
-          onFocus={() => {
-            setMathPadVisible(true);
-            setCurrentlyFocusedInput("bitcoin");
-          }}
-          onBlur={() => {
-            // setMathPadVisible(false);
-          }}
-          inputAccessoryViewID={MATH_PAD_NATIVE_ID}
-        />
-        <Icon type="Foundation" name="bitcoin-circle" onPress={onPressChangeBitcoinUnit} style={{ fontSize: 31, marginRight: 1 }} />
-      </>
-    ),
-  }, {
-    key: "AMOUNT_FIAT",
-    title: `Amount ${fiatUnit}`,
-    component: (
-      <>
-        <Input
-          onSubmitEditing={() => setMathPadVisible(false)}
-          onChangeText={onChangeFiatInput}
-          placeholder="0.00"
-          value={dollarValue !== undefined ? dollarValue.toString() : undefined}
-          keyboardType="numeric"
-          returnKeyType="done"
-          onFocus={() => {
-            setMathPadVisible(true);
-            setCurrentlyFocusedInput("fiat");
-          }}
-          onBlur={() => {
-            // setMathPadVisible(false);
-          }}
-          inputAccessoryViewID={MATH_PAD_NATIVE_ID}
-        />
-        <Icon type="FontAwesome" name="money" onPress={onPressChangeFiatUnit} />
-      </>
-    ),
-  }, {
-    key: "PAYER",
-    title: "Payer",
-    component: (
-      <Input
-        onChangeText={setPayer}
-        placeholder="For bookkeeping"
-        onFocus={() => setMathPadVisible(false)}
-        value={payer}
-      />
-    ),
-  }, {
-    key: "MESSAGE",
-    title: "Message",
-    component: (
-      <Input
-        testID="input-message"
-        onChangeText={setDescription}
-        placeholder="Message to payer"
-        onFocus={() => setMathPadVisible(false)}
-        value={description}
-      />
-    ),
-  }];
-
-  const canSend = (
+  const canSend =
     rpcReady &&
     invoiceSubscriptionStarted &&
     syncedToChain &&
     channels.some((channel) => channel.active) &&
-    !createInvoiceDisabled
-  );
+    !createInvoiceDisabled;
 
-  const loading = (
+  const loading =
     !rpcReady ||
     !invoiceSubscriptionStarted ||
     !syncedToChain ||
     createInvoiceDisabled ||
-    (channels.length > 0 && !channels.some((channel) => channel.active))
-  );
+    (channels.length > 0 && !channels.some((channel) => channel.active));
 
   const showNoticeText = rpcReady && channels.length === 0;
-  const noticeText = showNoticeText
-    ? "Before you can receive, you need to open a Lightning channel."
-    : undefined;
+  const noticeText = showNoticeText ? t("createInvoice.alert") : undefined;
 
-  const addMathOperatorToInput = (operator: "+" |  "-" |  "*" |  "/" |  "(" | ")") => {
+  const addMathOperatorToInput = (operator: "+" | "-" | "*" | "/" | "(" | ")") => {
     if (currentlyFocusedInput === "bitcoin") {
       onChangeBitcoinInput((bitcoinValue ?? "") + operator);
-    }
-    else if (currentlyFocusedInput === "fiat") {
+    } else if (currentlyFocusedInput === "fiat") {
       onChangeFiatInput((dollarValue ?? "") + operator);
     }
   };
@@ -282,8 +323,9 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
         }}
         items={formItems}
         noticeText={noticeText}
+        noticeIcon="info"
         buttons={[
-         <Button
+          <Button
             testID="create-invoice"
             key="CREATE_INVOICE"
             block={true}
@@ -292,11 +334,12 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
             disabled={!canSend}
             style={{ marginBottom: mathPadVisible && false ? MATH_PAD_HEIGHT + 5 : 0 }}
           >
-            {loading
-              ? <Spinner color={blixtTheme.light} />
-              : <Text>Create invoice</Text>
-            }
-          </Button>
+            {loading ? (
+              <Spinner color={blixtTheme.light} />
+            ) : (
+              <Text>{t("createInvoice.title")}</Text>
+            )}
+          </Button>,
         ]}
       />
       {/* {mathPadVisibleOriginal  && false &&
@@ -313,4 +356,4 @@ export default function ReceiveSetup({ navigation }: IReceiveSetupProps) {
       } */}
     </Container>
   );
-};
+}

@@ -1,7 +1,42 @@
-require_relative '../node_modules/react-native/scripts/react_native_pods'
-require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
+# Blixt
+def node_require(script)
+  # Resolve script with node to allow for hoisting
+  require Pod::Executable.execute_command('node', ['-p',
+    "require.resolve(
+      '#{script}',
+      {paths: [process.argv[1]]},
+    )", __dir__]).strip
+end
 
-platform :ios, '10.0'
+node_require('react-native/scripts/react_native_pods.rb')
+node_require('react-native-permissions/scripts/setup.rb')
+
+setup_permissions([
+  # 'AppTrackingTransparency',
+  # 'BluetoothPeripheral',
+  # 'Calendars',
+  'Camera',
+  # 'Contacts',
+  'FaceID',
+  # 'LocationAccuracy',
+  # 'LocationAlways',
+  'LocationWhenInUse',
+  # 'MediaLibrary',
+  # 'Microphone',
+  # 'Motion',
+  # 'Notifications',
+  # 'PhotoLibrary',
+  # 'PhotoLibraryAddOnly',
+  # 'Reminders',
+  # 'SpeechRecognition',
+  # 'StoreKit',
+])
+
+pod 'SwiftProtobuf', '~> 1.22.0'
+# End Blixt
+
+platform :ios, 16.6
+prepare_react_native_project!
 
 project 'BlixtWallet',
         'DebugTestnet' => :debug,
@@ -10,37 +45,33 @@ project 'BlixtWallet',
         'ReleaseFakelnd' => :release,
         'DebugRegtest' => :debug,
         'ReleaseRegtest' => :release,
+        'DebugSignet' => :debug,
+        'ReleaseSignet' => :release,
         'Debug' => :debug,
         'Release' => :release
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
 
 target 'BlixtWallet' do
   config = use_native_modules!
 
   use_react_native!(
     :path => config[:reactNativePath],
-    # to enable hermes on iOS, change `false` to `true` and then install pods
-    :hermes_enabled => true
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  # proto
-  pod 'SwiftProtobuf', '~> 1.0'
-
-  # react-native-permissions
-  permissions_path = '../node_modules/react-native-permissions/ios'
-  pod 'Permission-LocationWhenInUse', :path => "#{permissions_path}/LocationWhenInUse"
-
-  target 'BlixtWalletTests' do
-    inherit! :complete
-    # Pods for testing
-  end
-
-  # Enables Flipper.
-  #
-  # Note that if you have use_frameworks! enabled, Flipper will not work and
-  # you should disable the next line.
-  # use_flipper!()
-
   post_install do |installer|
-    react_native_post_install(installer)
+    react_native_post_install(
+      installer,
+      # Set `mac_catalyst_enabled` to `true` in order to apply patches
+      # necessary for Mac Catalyst builds
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
   end
 end

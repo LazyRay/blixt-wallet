@@ -1,429 +1,210 @@
 import React, { useEffect, useState } from "react";
-import { Vibration, StyleSheet, Linking, Alert } from "react-native";
-import Clipboard from "@react-native-community/clipboard"
-import { Body, Card, Text, CardItem, H1, View, Button, Input, Spinner } from "native-base";
+import { KeyboardAvoidingView, TouchableOpacity } from "react-native";
+import { Body, Card, Text, CardItem, H1, View, Icon } from "native-base";
+import { Button } from "../../components/Button";
 import { StackNavigationProp } from "@react-navigation/stack";
-import Long from "long";
 
-import { blixtTheme } from "../../native-base-theme/variables/commonColor";
+import { LnUrlStackParamList } from "./index";
 import { useStoreState, useStoreActions } from "../../state/store";
-import { RootStackParamList } from "../../Main";
-import { toast, getDomainFromURL, decryptLNURLPayAesTagMessage, hexToUint8Array } from "../../utils";
+import { getDomainFromURL } from "../../utils";
 import Blurmodal from "../../components/BlurModal";
-import { ILNUrlPayRequestMetadata, ILNUrlPayResponse } from "../../state/LNURL";
-import ScaledImage from "../../components/ScaledImage";
-import Color from "color";
-import { formatBitcoin, convertBitcoinToFiat, unitToSatoshi } from "../../utils/bitcoin-units";
-import TextLink from "../../components/TextLink";
+import { ILNUrlPayRequestMetadata } from "../../state/LNURL";
+import { Alert } from "../../utils/alert";
+import PaymentCard from "./PayRequest/PaymentCard";
+import PaymentDone from "./PayRequest/PaymentDone";
+import style from "./PayRequest/style";
+import { PLATFORM } from "../../utils/constants";
+import { RouteProp } from "@react-navigation/native";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 export interface IPayRequestProps {
-  navigation: StackNavigationProp<RootStackParamList>;
-  route: any;
-
+  navigation: StackNavigationProp<LnUrlStackParamList>;
+  route: RouteProp<LnUrlStackParamList, "PayRequest">;
 }
 export default function LNURLPayRequest({ navigation, route }: IPayRequestProps) {
-  const [doRequestLoading, setDoRequestLoading] = useState(false);
-
-  const [paid, setPaid] = useState(false);
-  const type = useStoreState((store) => store.lnUrl.type);
-  const doPayRequest = useStoreActions((store) => store.lnUrl.doPayRequest);
-  const clear = useStoreActions((store) => store.lnUrl.clear);
+  const t = useTranslation(namespaces.LNURL.payRequest).t;
+  const callback = route?.params?.callback ?? (() => {});
+  const [preimage, setPreimage] = useState<Uint8Array | undefined>();
   const lnurlStr = useStoreState((store) => store.lnUrl.lnUrlStr);
   const lnUrlObject = useStoreState((store) => store.lnUrl.lnUrlObject);
+  const clear = useStoreActions((store) => store.lnUrl.clear);
+  const payRequestResponse = useStoreState((store) => store.lnUrl.payRequestResponse);
+  const domain = getDomainFromURL(lnurlStr ?? "");
+  const syncContact = useStoreActions((actions) => actions.contacts.syncContact);
+  const getContactByLightningAddress = useStoreState(
+    (actions) => actions.contacts.getContactByLightningAddress,
+  );
+  const getContactByLnUrlPay = useStoreState((actions) => actions.contacts.getContactByLnUrlPay);
 
-  const bitcoinUnit = useStoreState((store) => store.settings.bitcoinUnit);
-  const fiatUnit = useStoreState((store) => store.settings.fiatUnit);
-  const currentRate = useStoreState((store) => store.fiat.currentRate);
-  const multiPathPaymentsEnabled = useStoreState((store) => store.settings.multiPathPaymentsEnabled);
-  const sendPayment = useStoreActions((actions) => actions.send.sendPayment);
-  const sendPaymentOld = useStoreActions((actions) => actions.send.sendPaymentOld);
+  useEffect(() => clear, []);
 
-  const [metadata, setMetadata] = useState<ILNUrlPayRequestMetadata>();
-  const [domain, setDomain] = useState("");
-  const [text, setText] = useState("");
-  const [image, setImage] = useState<string | undefined>();
-  const [minSpendable, setMinSpendable] = useState<number | undefined>();
-  const [maxSpendable, setMaxSpendable] = useState<number | undefined>();
-  const [commentAllowed, setCommentAllowed] = useState<number | undefined>();
-  const [payRequestResponse, setPayRequestResponse] = useState<ILNUrlPayResponse | undefined>();
-  const [preimage, setPreimage] = useState<Uint8Array | undefined>();
-
-  const [sendAmountMSat, setSendAmountMSat] = useState(0);
-  const [comment, setComment] = useState<string | undefined>();
-
-  useEffect(() => {
-    if (lnUrlObject && lnUrlObject.tag === "payRequest") {
-      setDomain(getDomainFromURL(lnurlStr!))
-
-      const metadata = JSON.parse(lnUrlObject.metadata) as ILNUrlPayRequestMetadata;
-      setMetadata(metadata);
-
-      const metaDataText = metadata.find((m, i) => {
-        return !!m.find((str) => str === "text/plain");
-      });
-      if (metaDataText) {
-        setText(metaDataText[1]);
-      }
-
-      const metaDataImage = metadata.filter((m, i) => {
-        return !!m.find((str) => str.toUpperCase().startsWith( "IMAGE"));
-      });
-      if (metaDataImage[0]) {
-        setImage(metaDataImage[0][1]);
-      }
-
-      setMinSpendable(lnUrlObject.minSendable);
-      setMaxSpendable(lnUrlObject.maxSendable);
-      setCommentAllowed(lnUrlObject.commentAllowed ?? undefined)
-
-      if (lnUrlObject.minSendable === lnUrlObject.maxSendable) {
-        setSendAmountMSat(lnUrlObject.minSendable);
-      }
+  try {
+    if (domain === "" || !lnUrlObject || lnUrlObject.tag !== "payRequest") {
+      return <></>;
     }
-  }, [lnUrlObject]);
 
-  const cancel = () => {
-    clear();
-    navigation.pop();
-  };
+    const metadata = JSON.parse(lnUrlObject.metadata) as ILNUrlPayRequestMetadata;
+    const lightningAddress = metadata?.find(
+      (item) => item[0] === "text/identifier" || item[0] === "text/email",
+    );
 
-  const viewMetadata = () => {
-    Alert.alert("Technical metadata", JSON.stringify(metadata, undefined, 2));
-  }
-
-  const onChangeBitcoinInput = (newText: string) => {
-    const msat = unitToSatoshi(Number.parseFloat(newText), bitcoinUnit) * 1000;
-    setSendAmountMSat(msat);
-  };
-
-  const onPressPay = async () => {
-    try {
-      setDoRequestLoading(true);
-      const paymentRequestResponse = await doPayRequest({
-        msat: sendAmountMSat,
-        comment,
-      });
-      console.log(paymentRequestResponse);
-      setPayRequestResponse(paymentRequestResponse);
-
-      let preimage: Uint8Array;
-
-      if (multiPathPaymentsEnabled) {
-        try {
-          console.log("Paying with MPP enabled");
-          const response = await sendPayment();
-          preimage = hexToUint8Array(response.paymentPreimage);
-        } catch (e) {
-          console.log("Didn't work. Trying without instead");
-          console.log(e);
-          console.log("Paying with MPP disabled");
-          const response = await sendPaymentOld();
-          preimage = response.paymentPreimage;
-        }
-      }
-      else {
-        console.log("Paying with MPP disabled");
-        const response = await sendPaymentOld();
-        preimage = response.paymentPreimage;
-      }
-
+    const paidCallback = (preimage: Uint8Array) => {
       setPreimage(preimage);
-      setPaid(true);
-      if (paymentRequestResponse.successAction === null) {
-        navigation.pop();
+    };
+
+    const viewMetadata = () => {
+      Alert.alert(t("viewMetadata.dialog.title"), JSON.stringify(metadata, undefined, 2));
+    };
+
+    const onPressLightningAddress = () => {
+      navigation.navigate("PayRequestAboutLightningAddress");
+    };
+
+    const promptLightningAddressContact = () => {
+      if (!lightningAddress?.[1]) {
+        return;
       }
 
-      // navigation.navigate("Send", {
-      //   screen: "SendConfirmation",
-      //   params: {
-      //     callback: (paymentPreimage: Uint8Array) => {
-      //       if (paymentPreimage !== null) {
-      //         setPreimage(paymentPreimage);
-      //         setPaid(true);
-      //         if (paymentRequestResponse.successAction === null) {
-      //           navigation.pop();
-      //         }
-      //       }
-      //     }
-      //   }
-      // });
-    } catch (e) {
-      Vibration.vibrate(50);
-      toast(
-        "Error: " + e.message,
-        12000,
-        "danger",
-        "Okay"
-      );
-    }
-    setDoRequestLoading(false);
-  }
+      if (getContactByLightningAddress(lightningAddress[1])) {
+        Alert.alert(
+          "",
+          t("lightningAddress.alreadyExists.msg", { lightningAddress: lightningAddress[1] }),
+        );
+      } else {
+        Alert.alert(
+          t("lightningAddress.add.title"),
+          t("lightningAddress.add.msg", { lightningAddress: lightningAddress[1] }),
+          [
+            {
+              text: t("buttons.no", { ns: namespaces.common }),
+              style: "cancel",
+            },
+            {
+              text: t("buttons.yes", { ns: namespaces.common }),
+              style: "default",
+              onPress: async () => {
+                const domain = lightningAddress[1].split("@")[1] ?? "";
 
-  const minSpendableFormatted = formatBitcoin(Long.fromValue(minSpendable ?? 0).div(1000), bitcoinUnit);
-  const minSpendableFiatFormatted = convertBitcoinToFiat(Long.fromValue(minSpendable ?? 0).div(1000), currentRate) + " " + fiatUnit;
-
-  const maxSpendableFormatted = formatBitcoin(Long.fromValue(maxSpendable ?? 0).div(1000), bitcoinUnit);
-  const maxSpendableFiatFormatted = convertBitcoinToFiat(Long.fromValue(maxSpendable ?? 0).div(1000), currentRate) + " " + fiatUnit;
-
-  if (paid && payRequestResponse) {
-    const onPressCopyUrltoClipboard = () => {
-      if (payRequestResponse.successAction?.tag === "url") {
-        Clipboard.setString(payRequestResponse.successAction.url);
-        toast("Copied to clipboard.", undefined, "warning")
+                syncContact({
+                  type: "PERSON",
+                  domain,
+                  lnUrlPay: null,
+                  lnUrlWithdraw: null,
+                  lightningAddress: lightningAddress[1],
+                  lud16IdentifierMimeType: "text/identifier",
+                  note: "",
+                  label: null,
+                });
+              },
+            },
+          ],
+        );
       }
     };
 
-    const onPressOpenUrlInBrowser = async () => {
-      if (payRequestResponse.successAction?.tag === "url") {
-        await Linking.openURL(payRequestResponse.successAction.url);
+    const promptLnUrlPayContact = () => {
+      if (getContactByLnUrlPay(lnurlStr ?? "")) {
+        Alert.alert("", t("payContact.alreadyExists.msg", { domain }));
+      } else {
+        Alert.alert(t("payContact.add.title"), t("payContact.add.msg", { domain }), [
+          {
+            text: t("buttons.no", { ns: namespaces.common }),
+          },
+          {
+            text: t("buttons.yes", { ns: namespaces.common }),
+            onPress: async () => {
+              syncContact({
+                type: "SERVICE",
+                domain,
+                lnUrlPay: lnurlStr ?? null,
+                lnUrlWithdraw: null,
+                lightningAddress: null,
+                lud16IdentifierMimeType: null,
+                note: "",
+                label: null,
+              });
+            },
+          },
+        ]);
       }
     };
+
+    const disposableIsFalse =
+      /*lnUrlObject.disposable === false ||*/ (preimage && payRequestResponse?.disposable) ===
+      false;
+
+    const KeyboardAvoid = PLATFORM === "ios" ? KeyboardAvoidingView : View;
 
     return (
-      <Blurmodal useModalComponent={false} goBackByClickingOutside={false}>
-        <Card style={style.card}>
-          <CardItem style={{ flexGrow: 1 }}>
-            <Body>
-              <H1 style={style.header}>
-                Invoice paid
-              </H1>
-              {payRequestResponse.successAction?.tag === "message" &&
-                <>
-                  <Text>
-                    Message from {domain}:{"\n"}
-                    {payRequestResponse.successAction.message}
-                  </Text>
-                </>
-              }
-              {payRequestResponse.successAction?.tag === "url" &&
-                <>
-                  <Text style={style.text}>
-                    Description:{"\n"}
-                    {payRequestResponse.successAction.description}
-                  </Text>
-                  <Text style={style.text}>
-                    URL received from {domain}:{"\n"}
-                    <TextLink url={payRequestResponse.successAction.url}>
-                      {payRequestResponse.successAction.url}
-                    </TextLink>
-                  </Text>
-                </>
-              }
-              {payRequestResponse.successAction?.tag === "aes" &&
-                <>
-                  <Text style={style.text}>Got a secret encrypted message from {domain}.</Text>
-                  <Text style={style.text}>
-                    Message from {domain}:{"\n"}
-                    {payRequestResponse.successAction.description}
-                  </Text>
-                  <Text style={style.text}>
-                    Secret message:{"\n"}
-                    {(() => {
-                      if (payRequestResponse.successAction?.tag === "aes") {
-                        return decryptLNURLPayAesTagMessage(
-                          preimage!,
-                          payRequestResponse.successAction.iv,
-                          payRequestResponse.successAction.ciphertext,
-                        );
-
-                        // const aesCbc = new aesjs.ModeOfOperation.cbc(
-                        //   preimage!,
-                        //   base64.toByteArray(payRequestResponse.successAction.iv)
-                        // );
-
-                        // const msg = aesCbc.decrypt(
-                        //   base64.toByteArray(payRequestResponse.successAction.ciphertext)
-                        // )
-                        // return uint8ArrayToString(msg);
-                      }
-                    })()}
-                  </Text>
-                </>
-              }
-              <View style={[style.actionBar, { justifyContent: undefined }]}>
-                <Button onPress={cancel} small={true}>
-                  <Text style={{ fontSize:10 }}>Done</Text>
+      <Blurmodal goBackByClickingOutside={false}>
+        <KeyboardAvoid behavior={"padding"} keyboardVerticalOffset={60}>
+          <View style={style.keyboardContainer}>
+            {__DEV__ && (
+              <View style={{ position: "absolute", top: 50, right: 0, zIndex: 10000 }}>
+                <Button small={true} onPress={viewMetadata}>
+                  <Text style={{ fontSize: 7.5 }}>View metadata</Text>
                 </Button>
-                {payRequestResponse.successAction?.tag === "url" &&
-                  <>
-                    <Button
-                      onPress={onPressCopyUrltoClipboard}
-                      small
-                      style={{ marginRight: 12 }}
-                    >
-                      <Text style={{ fontSize:10 }}>Copy to clipboard</Text>
-                    </Button>
-                    <Button
-                      onPress={onPressOpenUrlInBrowser}
-                      small
-                      style={{ marginRight: 12 }}
-                    >
-                      <Text style={{ fontSize:10 }}>Open Browser</Text>
-                    </Button>
-                  </>
-                }
               </View>
-            </Body>
-          </CardItem>
-        </Card>
+            )}
+            <Card style={style.card}>
+              <CardItem style={style.cardItem}>
+                <Body style={{ flex: 1, height: "100%" }}>
+                  <View style={style.headerContainer}>
+                    <H1 style={style.header}>{!preimage ? "Pay" : "Paid"}</H1>
+                    {lightningAddress?.[1] !== undefined && (
+                      <View style={style.contactContainer}>
+                        <TouchableOpacity onPress={onPressLightningAddress}>
+                          <Text style={style.lightningAddress} numberOfLines={1}>
+                            {lightningAddress[1]}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={promptLightningAddressContact}>
+                          <Icon
+                            style={style.contactAddIcon}
+                            type="AntDesign"
+                            name={
+                              getContactByLightningAddress(lightningAddress[1]) !== undefined
+                                ? "check"
+                                : "adduser"
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    {lightningAddress?.[1] === undefined && disposableIsFalse && (
+                      <View style={style.contactContainer}>
+                        <TouchableOpacity onPress={promptLnUrlPayContact}>
+                          <Icon
+                            style={style.contactAddIcon}
+                            type="AntDesign"
+                            name={getContactByLnUrlPay(lnurlStr ?? "") ? "check" : "pluscircle"}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                  {!preimage && (
+                    <PaymentCard
+                      onPaid={paidCallback}
+                      lnUrlObject={lnUrlObject}
+                      callback={callback}
+                    />
+                  )}
+                  {preimage && <PaymentDone preimage={preimage} callback={callback} />}
+                </Body>
+              </CardItem>
+            </Card>
+          </View>
+        </KeyboardAvoid>
       </Blurmodal>
     );
+  } catch (error: any) {
+    console.log(error.message);
+    Alert.alert(`${t("unableToPay")}:\n\n${error.message}`);
+    callback(null);
+    navigation.goBack();
+    return <></>;
   }
-
-  if (domain === "") {
-    return (
-      <></>
-    );
-  }
-
-  return (
-    <Blurmodal useModalComponent={false} goBackByClickingOutside={false}>
-      <Card style={style.card}>
-        <CardItem style={{ flexGrow: 1 }}>
-          <Body>
-            <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
-              <H1 style={style.header}>
-                Pay
-              </H1>
-              {__DEV__ &&
-                <Button small={true} onPress={viewMetadata}>
-                  <Text style={{ fontSize: 7.5 }}>View technical metadata</Text>
-                </Button>
-              }
-            </View>
-            <Text style={style.text}>
-              {domain} asks you to pay for a product.
-            </Text>
-            <Text style={style.text}>
-              Description:{"\n"}
-              {text}
-            </Text>
-            <Text style={{ marginBottom: 28 }}>
-              Price:{"\n"}
-              {minSpendableFormatted} ({minSpendableFiatFormatted})
-              {(minSpendable !== maxSpendable) &&
-                <Text> to {maxSpendableFormatted} ({maxSpendableFiatFormatted})</Text>
-              }
-            </Text>
-            {typeof commentAllowed === "number" && commentAllowed > 0 &&
-              <>
-                <Text>
-                  Comment to {domain} (max {commentAllowed} letters):
-                </Text>
-                <View style={{ flexDirection:"row" }}>
-                  <Input onChangeText={setComment} keyboardType="default" style={[style.input, { marginTop: 9, marginBottom: 16 }]} />
-                </View>
-              </>
-            }
-            {image &&
-              <ScaledImage
-                uri={"data:image/png;base64," + image}
-                height={190}
-                style={{
-                  alignSelf: "center",
-                  marginBottom: 28,
-                }}
-              />
-            }
-            <View style={style.actionBar}>
-              <Button
-                disabled={doRequestLoading}
-                success
-                onPress={onPressPay}
-                style={{
-                  marginLeft: 10,
-                  width: 58,
-                }}
-                small={true}
-              >
-                {!doRequestLoading && <Text>Pay</Text>}
-                {doRequestLoading && <Spinner style={{ flex:1 }} size={26} color={blixtTheme.light} />}
-              </Button>
-              {minSpendable !== maxSpendable &&
-                <Input
-                  onChangeText={onChangeBitcoinInput}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                  placeholder={`${minSpendableFormatted} to ${maxSpendableFormatted}`}
-                  style={style.input}
-                />
-              }
-              <Button
-                onPress={cancel}
-                style={{
-                  marginRight: 10,
-                }}
-                danger
-                small={true}
-              >
-                <Text>Cancel</Text>
-              </Button>
-            </View>
-          </Body>
-        </CardItem>
-      </Card>
-    </Blurmodal>
-  );
 }
-
-const style = StyleSheet.create({
-  blurOverlay: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  container: {
-    width:"100%",
-    padding: 12,
-    flex: 1,
-    justifyContent: "center"
-  },
-  card: {
-    padding: 5,
-    width: "100%",
-    minHeight: "55%",
-  },
-  header: {
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  detailText: {
-    marginBottom: 7,
-  },
-  qrText: {
-    marginBottom: 7,
-    paddingTop: 4,
-    paddingLeft: 18,
-    paddingRight: 18,
-  },
-  actionBar: {
-    width: "100%",
-    flexGrow: 1,
-    alignItems:"flex-end",
-    justifyContent:"space-between",
-    flexDirection: "row-reverse",
-  },
-  text: {
-    marginBottom: 14,
-  },
-  iconText: {
-  },
-  icon: {
-    fontSize: 18,
-  },
-  input: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: "auto",
-    height: 28,
-    fontSize: 13,
-    backgroundColor: Color(blixtTheme.gray).lighten(0.28).hex(),
-    borderRadius: 32,
-    paddingTop: 5,
-    paddingBottom: 5,
-    paddingLeft: 12,
-    paddingRight: 8,
-  }
-});

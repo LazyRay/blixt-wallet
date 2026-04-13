@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Animated } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated } from "react-native";
 import { Text } from "native-base";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -9,6 +9,10 @@ import { SendStackParamList } from "./index";
 import Svg, { Circle, Polyline } from "react-native-svg";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import Container from "../../components/Container";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
+
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
@@ -61,6 +65,34 @@ function CheckmarkPolyline() {
   );
 }
 
+
+function Check() {
+  return (
+    <Svg width="185" height="185" style={{ backgroundColor: "transparent" }}>
+      <CheckmarkCircle />
+      <CheckmarkPolyline />
+    </Svg>
+  );
+}
+
+export function Done() {
+  const t = useTranslation(namespaces.send.sendDone).t;
+
+  return (
+    <>
+      <Check />
+      <AnimatedText
+        style={{ marginTop: 12 }}
+        duration={300}
+        animation="fadeIn"
+        useNativeDriver={true}
+      >
+        {t("done.title")}
+      </AnimatedText>
+    </>
+  )
+}
+
 export interface ISendConfirmationProps {
   navigation: StackNavigationProp<SendStackParamList, "SendDone">;
   route: RouteProp<SendStackParamList, "SendDone">;
@@ -75,24 +107,15 @@ export default function SendDone({
   useEffect(() => {
     setTimeout(() => {
       callback(preimage!);
-      navigation.pop();
-    }, 1850);
+      if (navigation.canGoBack()) {
+        navigation.pop();
+      }
+    }, 2200);
   }, []);
 
   return (
     <Container style={{ justifyContent: "center", alignItems: "center" }}>
-      <Svg width="185" height="185" style={{ backgroundColor: "transparent" }}>
-        <CheckmarkCircle />
-        <CheckmarkPolyline />
-      </Svg>
-      <AnimatedText
-        style={{ marginTop: 12 }}
-        duration={300}
-        animation="fadeIn"
-        useNativeDriver={true}
-      >
-        PAYMENT SENT
-      </AnimatedText>
+      <Done />
     </Container>
   );
 }

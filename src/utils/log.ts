@@ -1,7 +1,14 @@
-import { NativeModules } from "react-native";
-
 import { Debug } from "./build";
+import NativeBlixtTools from "../turbomodules/NativeBlixtTools";
 import { PLATFORM } from "./constants";
+
+export type LogLevel = "Verbose" | "Debug" | "Info" | "Warning" | "Error";
+export const logEntries: [LogLevel, string][] = [];
+
+// TODO: maybe make array observable in order trigger re-render for hook
+export function useGetLogEntries(): [LogLevel, string][] {
+  return logEntries;
+}
 
 const log = (tag?: string) => {
   tag = tag ?? "";
@@ -10,45 +17,40 @@ const log = (tag?: string) => {
     v: (message: string, data: any[] = []) => {
       if (Debug) {
         const msg = fixMessage(message, data);
+        logEntries.push(["Debug", `${tag}: ${msg}`]);
         console.debug(`${tag}: ${msg}`);
-        if (["android", "ios"].includes(PLATFORM)) {
-          NativeModules.LndMobileTools.log("v", tag!, msg);
-        }
+        NativeBlixtTools.log("v", tag!, msg);
       }
     },
 
     d: (message: string, data: any[] = []) => {
       if (Debug) {
         const msg = fixMessage(message, data);
+        logEntries.push(["Debug", `${tag}: ${msg}`]);
         console.debug(`${tag}: ${msg}`);
-        if (["android", "ios"].includes(PLATFORM)) {
-          NativeModules.LndMobileTools.log("d", tag!, msg);
-        }
+        NativeBlixtTools.log("d", tag!, msg);
       }
     },
 
     i: (message: string, data: any[] = []) => {
       const msg = fixMessage(message, data);
-      console.log(`${tag}: ${msg}`)
-      if (["android", "ios"].includes(PLATFORM)) {
-        NativeModules.LndMobileTools.log("i", tag!, msg);
-      }
+      logEntries.push(["Info", `${tag}: ${msg}`]);
+      console.log(`${tag}: ${msg}`);
+      NativeBlixtTools.log("i", tag!, msg);
     },
 
     w: (message: string, data: any[] = []) => {
       const msg = fixMessage(message, data);
-      console.warn(`${tag}: ${msg}`)
-      if (["android", "ios"].includes(PLATFORM)) {
-        NativeModules.LndMobileTools.log("w", tag!, msg);
-      }
+      logEntries.push(["Warning", `${tag}: ${msg}`]);
+      console.warn(`${tag}: ${msg}`);
+      NativeBlixtTools.log("w", tag!, msg);
     },
 
     e: (message: string, data: any[] = []) => {
       const msg = fixMessage(message, data);
-      console.error(`${tag}: ${msg}`)
-      if (["android", "ios"].includes(PLATFORM)) {
-        NativeModules.LndMobileTools.log("e", tag!, msg);
-      }
+      logEntries.push(["Error", `${tag}: ${msg}`]);
+      PLATFORM !== "macos" ? console.error(`${tag}: ${msg}`) : console.log(`${tag}: ${msg}`);
+      NativeBlixtTools.log("e", tag!, msg);
     },
   };
 };
@@ -56,24 +58,27 @@ const log = (tag?: string) => {
 export default log;
 
 const processDataArg = (data: any[]) =>
-  data.map((d) => {
-    if (d instanceof Error) {
-      return JSON.stringify({
-        name: d.name,
-        message: d.message,
-        // stack: d.stack,
-      });
-    }
-    return JSON.stringify(d);
-  }).join("\n  ");
+  data
+    .map((d) => {
+      if (d instanceof Error) {
+        return JSON.stringify({
+          name: d.name,
+          message: d.message,
+          // stack: d.stack,
+        });
+      }
+      return JSON.stringify(d);
+    })
+    .join("\n  ");
 
 const fixMessage = (message: string, data: any[]) => {
   if (!Array.isArray(data)) {
-    log("log.ts")
-      .e(`Invalid data arg passed to logging function: ${JSON.stringify(data)}. Must be an array`);
+    log("log.ts").e(
+      `Invalid data arg passed to logging function: ${JSON.stringify(data)}. Must be an array`,
+    );
   }
   if (data.length > 0) {
     message += `\n  ${processDataArg(data)}`;
   }
   return message;
-}
+};

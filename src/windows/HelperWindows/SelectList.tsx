@@ -1,10 +1,14 @@
 import React, { useLayoutEffect, useState } from "react";
-import { Header, Icon, Input, Item, ListItem, Text } from "native-base";
+import { Header, Icon, Item, ListItem, Text } from "native-base";
 import Container from "../../components/Container";
-import { FlatList, StyleSheet, View } from "react-native";
+import { FlatList, StyleSheet } from "react-native";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
+import Input from "../../components/Input";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 export interface ISelectListNavigationProps<T> {
   title: string;
@@ -24,6 +28,7 @@ export interface ISelectListProps<T> {
 }
 
 export default function<T = string>({ navigation, route }: ISelectListProps<T>) {
+  const t = useTranslation(namespaces.common).t;
   const title = route?.params?.title ?? "";
   const onPick = route?.params?.onPick ?? (() => {});
   const data = route?.params?.data ?? [];
@@ -44,16 +49,11 @@ export default function<T = string>({ navigation, route }: ISelectListProps<T>) 
       {/* TODO(hsjoberg): Replace with react-navigation search bar when possible */}
       {/* https://github.com/react-navigation/search-layout/pull/20 */}
       {searchEnabled &&
-        <Header iosBarStyle="light-content" searchBar rounded style={{
-          backgroundColor: blixtTheme.primary,
-          paddingTop: 0,
-          borderBottomWidth: 0,
-          marginHorizontal: 8,
-        }}>
+        <Header iosBarStyle="light-content" searchBar rounded style={style.searchHeader}>
           <Item rounded style={{ height:35 }}>
             <Input
               style={{ marginLeft: 8, marginTop: -2.5, borderRadius: 8, color: blixtTheme.dark }}
-              placeholder="Search"
+              placeholder={t("generic.search")}
               onChangeText={(text) => setSearchText(text)}
               autoCorrect={false}
             />
@@ -62,6 +62,7 @@ export default function<T = string>({ navigation, route }: ISelectListProps<T>) 
         </Header>
       }
       <FlatList
+        alwaysBounceVertical={false}
         ListHeaderComponent={description ? <Text style={style.description}>{description}</Text> : undefined}
         contentContainerStyle={{ paddingTop: 8, paddingHorizontal: 14, paddingBottom: 65 }}
         initialNumToRender={20}
@@ -73,8 +74,8 @@ export default function<T = string>({ navigation, route }: ISelectListProps<T>) 
         })}
         renderItem={({ item }) => (
           <ListItem style={{}} key={item.value} onPress={() => {
-            onPick(item.value);
             navigation.pop();
+            onPick(item.value);
           }}>
             <Text>{item.title}</Text>
           </ListItem>
@@ -90,5 +91,12 @@ const style = StyleSheet.create({
     marginTop: 35,
     marginHorizontal: 10,
     marginBottom: 35,
+  },
+  searchHeader: {
+    backgroundColor: blixtTheme.primary,
+    paddingTop: 0,
+    borderBottomWidth: 0,
+    marginHorizontal: 8,
+    elevation: 0,
   }
 });

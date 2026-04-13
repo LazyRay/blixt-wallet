@@ -1,17 +1,21 @@
 import React, { useEffect, useLayoutEffect } from "react";
-import { FlatList } from "react-native";
 import { Container, Icon } from "native-base";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { LegendList } from "@legendapp/list";
 
 import { OnChainStackParamList } from "./index";
 import OnChainTransactionItem from "../../components/OnChainTransactionItem";
 import { useStoreState, useStoreActions } from "../../state/store";
 import { NavigationButton } from "../../components/NavigationButton";
 
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
+
 export interface IOnChainTransactionLogProps {
   navigation: StackNavigationProp<OnChainStackParamList, "OnChainTransactionLog">;
 }
 export const OnChainTransactionLog = ({ navigation }: IOnChainTransactionLogProps) => {
+  const t = useTranslation(namespaces.onchain.onChainTransactionLog).t;
   const rpcReady = useStoreState((store) => store.lightning.rpcReady);
   const transactions = useStoreState((store) => store.onChain.transactions);
   const getTransactions = useStoreActions((store) => store.onChain.getTransactions);
@@ -27,15 +31,15 @@ export const OnChainTransactionLog = ({ navigation }: IOnChainTransactionLogProp
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: "Transaction Log",
+      headerTitle: t("layout.title"),
       headerShown: true,
       headerRight: () => {
         return (
-          <NavigationButton onPress={async () => rpcReady && await getTransactions()}>
+          <NavigationButton onPress={async () => rpcReady && (await getTransactions())}>
             <Icon type="MaterialIcons" name="sync" style={{ fontSize: 22 }} />
           </NavigationButton>
-        )
-      }
+        );
+      },
     });
   }, [navigation]);
 
@@ -45,9 +49,9 @@ export const OnChainTransactionLog = ({ navigation }: IOnChainTransactionLogProp
 
   return (
     <Container>
-      <FlatList
-        initialNumToRender={13}
-        data={transactions.sort((tx1, tx2) => tx2.timeStamp!.toNumber() - tx1.timeStamp!.toNumber())}
+      <LegendList
+        estimatedItemSize={75}
+        data={transactions.sort((tx1, tx2) => Number(tx2.timeStamp - tx1.timeStamp))}
         renderItem={({ item: transaction }) => (
           <OnChainTransactionItem
             key={transaction.txHash! + transaction.type}
@@ -58,6 +62,7 @@ export const OnChainTransactionLog = ({ navigation }: IOnChainTransactionLogProp
           />
         )}
         keyExtractor={(transaction, i) => transaction.txHash! + transaction.type + i}
+        recycleItems
       />
     </Container>
   );

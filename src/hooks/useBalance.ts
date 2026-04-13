@@ -1,12 +1,34 @@
 import { useState, useEffect } from "react";
-import { convertBitcoinToFiat, unitToSatoshi, valueBitcoinFromFiat, valueBitcoin, BitcoinUnits } from "../utils/bitcoin-units";
+import {
+  convertBitcoinToFiat,
+  unitToSatoshi,
+  valueBitcoinFromFiat,
+  valueBitcoin,
+  BitcoinUnits,
+  isSats,
+} from "../utils/bitcoin-units";
 import { useStoreState } from "../state/store";
+import { I18nManager, NativeModules } from "react-native";
+import { PLATFORM } from "../utils/constants";
 
 import exprEval from "expr-eval";
 import { countCharInString } from "../utils";
 const Parser = exprEval.Parser;
+const commaLocales: string[] = [
+  "en_AU",
+  "en_CA",
+  "en_NZ",
+  "en_US",
+  "fil_PH",
+  "ja_JP",
+  "zh_Hans_CN",
+  "zh_CN",
+];
 
-export default function useBalance(initialSat?: Long, noConversion = false) {
+export default function useBalance(initialSat?: bigint, noConversion = false) {
+  const settingsManagerConstants =
+    PLATFORM === "ios" ? NativeModules.SettingsManager.getConstants().settings : undefined;
+
   // gRPC/protobuf 0 is Number
   if (typeof initialSat === "number") {
     initialSat = undefined;
@@ -15,93 +37,185 @@ export default function useBalance(initialSat?: Long, noConversion = false) {
   const bitcoinUnit = useStoreState((store) => store.settings.bitcoinUnit);
   const fiatUnit = useStoreState((store) => store.settings.fiatUnit);
   const currentRate = useStoreState((store) => store.fiat.currentRate);
+  const toSatoshiValue = (value: number): number => {
+    if (!Number.isFinite(value)) {
+      return Number.NaN;
+    }
 
-  const [bitcoinValue, setBitcoinValue] = useState<string | undefined>(initialSat && valueBitcoin(initialSat, bitcoinUnit));
+    if (isSats(bitcoinUnit)) {
+      value = Math.floor(value);
+    }
+
+    const satoshi = unitToSatoshi(value, bitcoinUnit);
+    if (!Number.isFinite(satoshi)) {
+      return Number.NaN;
+    }
+
+    return Math.floor(satoshi);
+  };
+
+  const toFiatValue = (value: number): string | undefined => {
+    if (!Number.isFinite(currentRate) || currentRate <= 0) {
+      return undefined;
+    }
+
+    const satoshi = toSatoshiValue(value);
+    if (!Number.isFinite(satoshi)) {
+      return undefined;
+    }
+
+    return convertBitcoinToFiat(satoshi, currentRate);
+  };
+
+  const [bitcoinValue, setBitcoinValue] = useState<string | undefined>(
+    initialSat !== undefined ? valueBitcoin(initialSat, bitcoinUnit) : undefined,
+  );
   const [dollarValue, setDollarValue] = useState<string | undefined>(
-    bitcoinValue && convertBitcoinToFiat(
-      unitToSatoshi(Number.parseFloat(bitcoinValue), bitcoinUnit),
-      currentRate,
-    )
+    bitcoinValue ? toFiatValue(Number.parseFloat(bitcoinValue)) : undefined,
   );
 
   useEffect(() => {
     if (bitcoinValue && !noConversion) {
-      setDollarValue(
-        convertBitcoinToFiat(
-          unitToSatoshi(Number.parseFloat(bitcoinValue), bitcoinUnit),
-          currentRate,
-        )
-      );
+      setDollarValue(toFiatValue(Number.parseFloat(bitcoinValue)));
     }
   }, [bitcoinUnit]);
 
   useEffect(() => {
     if (dollarValue && !noConversion) {
       setBitcoinValue(
-        valueBitcoinFromFiat(Number.parseFloat(dollarValue), currentRate, bitcoinUnit)
+        valueBitcoinFromFiat(Number.parseFloat(dollarValue), currentRate, bitcoinUnit),
       );
     }
   }, [fiatUnit]);
 
   return {
     onChangeBitcoinInput(text: string) {
-      if (bitcoinUnit === "satoshi") {
-        text = text.replace(/\[^0-9+\-\/*]/g, "");
-      }
-      else {
-        text = text.replace(/,/g, ".");
+      if (isSats(bitcoinUnit)) {
+        text = text.replace(/[^0-9+\-\/*()]/g, "");
+      } else {
+        let replaceComma: boolean = true;
+        if (PLATFORM === "ios") {
+          const locale: string =
+            settingsManagerConstants.AppleLocale || settingsManagerConstants.AppleLanguages[0];
+
+          if (commaLocales.indexOf(locale) > -1) {
+            replaceComma = false;
+          }
+        } else if (PLATFORM === "android") {
+          const locale = I18nManager.getConstants().localeIdentifier;
+          if (locale && commaLocales.indexOf(locale) > -1) {
+            replaceComma = false;
+          }
+        }
+        if (replaceComma) {
+          text = text.replace(/,/g, ".");
+        } else {
+          text = text.replace(/,/g, "");
+        }
       }
       if (text.length === 0) {
         setBitcoinValue(undefined);
         setDollarValue(undefined);
         return;
       }
-      const fiatVal = evaluateExpression(text);
+
+      let fiatVal: string;
+      try {
+        fiatVal = evaluateExpression(text);
+      } catch (e) {
+        setBitcoinValue(text);
+        setDollarValue(undefined);
+        return;
+      }
+
       setBitcoinValue(text);
-      setDollarValue(
-        convertBitcoinToFiat(
-          unitToSatoshi(Number.parseFloat(fiatVal), bitcoinUnit),
-          currentRate,
-        )
-      );
+      setDollarValue(toFiatValue(Number.parseFloat(fiatVal)));
     },
-    onChangeFiatInput (text: string) {
-      text = text.replace(/,/g, ".");
+    onChangeFiatInput(text: string) {
+      let replaceComma: boolean = true;
+      if (PLATFORM === "ios") {
+        const locale: string =
+          settingsManagerConstants.AppleLocale || settingsManagerConstants.AppleLanguages[0];
+        if (commaLocales.indexOf(locale) > -1) {
+          replaceComma = false;
+        }
+      } else if (PLATFORM === "android") {
+        const locale = I18nManager.getConstants().localeIdentifier;
+        if (locale && commaLocales.indexOf(locale) > -1) {
+          replaceComma = false;
+        }
+      }
+      if (replaceComma) {
+        text = text.replace(/,/g, ".");
+      } else {
+        text = text.replace(/,/g, "");
+      }
       if (text.length === 0 || text[0] === ".") {
         setBitcoinValue(undefined);
         setDollarValue(undefined);
         return;
       }
       // Remove trailing math operators, otherwise expr-eval will fail
-      const bitcoinVal = evaluateExpression(text);
+      let bitcoinVal: string;
+      try {
+        bitcoinVal = evaluateExpression(text);
+      } catch (e) {
+        setBitcoinValue(undefined);
+        setDollarValue(text);
+        return;
+      }
       setBitcoinValue(
-        valueBitcoinFromFiat(Number.parseFloat(bitcoinVal), currentRate, bitcoinUnit)
+        valueBitcoinFromFiat(Number.parseFloat(bitcoinVal), currentRate, bitcoinUnit),
       );
       setDollarValue(text);
     },
     bitcoinValue,
-    satoshiValue: unitToSatoshi(Number.parseFloat(bitcoinValue || "0"), bitcoinUnit),
+    satoshiValue: (() => {
+      if (!bitcoinValue) {
+        return 0;
+      }
+
+      let evaluatedBitcoinValue: string;
+      try {
+        evaluatedBitcoinValue = evaluateExpression(bitcoinValue);
+      } catch (e) {
+        return Number.NaN;
+      }
+
+      const satoshi = toSatoshiValue(Number.parseFloat(evaluatedBitcoinValue));
+      if (!Number.isFinite(satoshi)) {
+        return Number.NaN;
+      }
+      return satoshi;
+    })(),
     dollarValue,
     bitcoinUnit: BitcoinUnits[bitcoinUnit],
     fiatUnit,
     evalMathExpression(target: "bitcoin" | "fiat") {
-      const val = evaluateExpression(target === "bitcoin" ? bitcoinValue || "0" : dollarValue || "0");
+      const inputValue = target === "bitcoin" ? bitcoinValue || "0" : dollarValue || "0";
+      let val: string;
+      try {
+        val = evaluateExpression(inputValue);
+      } catch (e) {
+        return;
+      }
       if (target === "bitcoin") {
+        const parsedBitcoinValue = Number.parseFloat(val);
+        if (isSats(bitcoinUnit) && Number.isFinite(parsedBitcoinValue)) {
+          const flooredBitcoinValue = Math.floor(parsedBitcoinValue);
+          setBitcoinValue(flooredBitcoinValue.toString());
+          setDollarValue(toFiatValue(flooredBitcoinValue));
+          return;
+        }
+
         setBitcoinValue(val);
-        setDollarValue(
-          convertBitcoinToFiat(
-            unitToSatoshi(Number.parseFloat(val), bitcoinUnit),
-            currentRate,
-          )
-        );
+        setDollarValue(toFiatValue(parsedBitcoinValue));
       } else if (target === "fiat") {
-        setBitcoinValue(
-          valueBitcoinFromFiat(Number.parseFloat(val), currentRate, bitcoinUnit)
-        );
+        setBitcoinValue(valueBitcoinFromFiat(Number.parseFloat(val), currentRate, bitcoinUnit));
         setDollarValue(val);
       }
-    }
-  }
+    },
+  };
 }
 
 function evaluateExpression(str: string) {
@@ -113,8 +227,8 @@ function evaluateExpression(str: string) {
   }
   try {
     str = Parser.evaluate(str).toString();
-  } catch(e) {
-    console.log(e);
+  } catch (e) {
+    throw e;
   }
 
   return str;

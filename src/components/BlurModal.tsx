@@ -1,20 +1,24 @@
 import React from "react";
-import Modal from "react-native-modal";
+import { View, StyleSheet, Pressable, ViewStyle } from "react-native";
+import { Icon } from "native-base";
+import { getStatusBarHeight } from "react-native-status-bar-height";
+
 import { useNavigation } from "@react-navigation/native";
 import RealTimeBlur from "../react-native-realtimeblur";
-import { View, StyleSheet, Pressable } from "react-native";
+import { PLATFORM } from "../utils/constants";
 
 export interface ITransactionDetailsProps {
   children: any;
-  useModalComponent?: boolean;
   goBackByClickingOutside?: boolean;
-  nomargin?: boolean
+  hideCross?: boolean;
+  noMargin?: boolean;
+  style?: ViewStyle;
 }
-export default function BlurModal({ children, useModalComponent, goBackByClickingOutside, noMargin }: ITransactionDetailsProps) {
+export default function BlurModal(props: ITransactionDetailsProps) {
+  const { children, hideCross, style: userStyle } = props;
   const navigation = useNavigation();
-  const useModal = useModalComponent ?? true;
-  goBackByClickingOutside = goBackByClickingOutside ?? true;
-  noMargin = noMargin ?? false;
+  const goBackByClickingOutside = props.goBackByClickingOutside ?? true;
+  const noMargin = props.noMargin ?? false;
 
   const goBack = () => {
     if (goBackByClickingOutside) {
@@ -23,44 +27,51 @@ export default function BlurModal({ children, useModalComponent, goBackByClickin
   };
 
   return (
-    <RealTimeBlur
-      overlayColor="#00000000"
-      downsampleFactor={1.2}
-      blurRadius={15}
-    >
-      {!useModal
-        ? <View style={{ flex: 1 }}>
-            <Pressable style={{ width: "100%", height: "100%" }} onPress={goBack}></Pressable>
-            <View style={style.container}>
-              <View style={[style.inner, { margin: noMargin ? 0 : style.inner.margin }]}>
-                {children}
-              </View>
-            </View>
-          </View>
-        : <Modal
-            onBackdropPress={goBack}
-            onRequestClose={goBack}
-            visible={true}
-          >
-            {children}
-          </Modal>
-      }
+    <RealTimeBlur overlayColor="#00000000" downsampleFactor={1.2} blurRadius={15}>
+      <View style={style.modalContainer}>
+        <Pressable
+          style={{
+            position: "absolute",
+            flex: 1,
+            width: "100%",
+            height: PLATFORM === "web" ? "100vh" : "100%",
+          }}
+          onPress={goBack}
+        />
+        <View style={[style.modal, noMargin ? style.modalNoMargin : undefined, userStyle]}>
+          {children}
+        </View>
+        {goBackByClickingOutside && !hideCross && (
+          <Icon
+            onPress={() => navigation.goBack()}
+            type="Entypo"
+            name="cross"
+            style={style.cross}
+          />
+        )}
+      </View>
     </RealTimeBlur>
   );
-};
+}
 
 const style = StyleSheet.create({
-  container: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
+  modalContainer: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
   },
-  inner: {
-    margin: 12,
-    padding: 0,
-    justifyContent: "flex-start",
-    flexDirection: "column",
+  modal: {
+    marginHorizontal: 6,
+    maxWidth: 800,
+    flex: 1,
   },
-})
+  modalNoMargin: {
+    marginHorizontal: 0,
+  },
+  cross: {
+    position: "absolute",
+    top: getStatusBarHeight() + (PLATFORM === "macos" || PLATFORM === "web" ? 10 : 0),
+    right: 10,
+  },
+});

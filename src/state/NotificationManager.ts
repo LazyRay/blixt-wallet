@@ -1,73 +1,104 @@
 import { Thunk, thunk } from "easy-peasy";
-import PushNotification, { PushNotificationObject } from "react-native-push-notification";
+import notifee, {
+  AndroidImportance,
+  AndroidVisibility,
+  AuthorizationStatus,
+} from "@notifee/react-native";
 
-import { navigate } from "../utils/navigation";
 import { IStoreModel } from "./index";
+import {
+  ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_ID,
+  ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_NAME,
+  PLATFORM,
+} from "../utils/constants";
+import { localNotification } from "../utils/push-notification";
+import { toast } from "../utils";
 
 import logger from "./../utils/log";
-import { ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_ID, ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_NAME, PLATFORM } from "../utils/constants";
-import { localNotification } from "../utils/push-notification";
 const log = logger("NotificationManager");
 
 interface ILocalNotificationPayload {
   message: string;
-  importance?: PushNotificationObject["importance"];
 }
 
 export interface INotificationManagerModel {
   initialize: Thunk<INotificationManagerModel>;
-
-  localNotification: Thunk<INotificationManagerModel, ILocalNotificationPayload,  any, IStoreModel>;
-};
+  startPersistentService: Thunk<INotificationManagerModel>;
+  stopPersistentService: Thunk<INotificationManagerModel>;
+  localNotification: Thunk<INotificationManagerModel, ILocalNotificationPayload, any, IStoreModel>;
+}
 
 export const notificationManager: INotificationManagerModel = {
   initialize: thunk(async () => {
-    log.d("Initializing");
+    try {
+      log.d("Initializing");
 
-    if (PLATFORM === "ios") {
-      const permissions = await PushNotification.requestPermissions(["alert", "sound", "badge"]);
-
-      if(!permissions.alert) {
-        log.w("Didn't get permissions to send push notifications.");
+      if (PLATFORM === "macos") {
+        log.i("Push notifications not supported on " + PLATFORM);
         return;
       }
-    }
 
-    PushNotification.configure({
-      requestPermissions: false,
-      onNotification: ((notification) => {
-        log.i("onNotification", [notification]);
+      if (PLATFORM === "ios" || PLATFORM === "android") {
+        log.i("Requesting permissions");
+        const result = await notifee.requestPermission();
 
-        // TODO(hsjoberg): ios notification deeplinking
-        if (PLATFORM === "android") {
-          if (notification.message.toString().includes("on-chain")) {
-            log.i("Navigating to OnChainTransactionLog");
-            navigate("OnChain", { screen: "OnChainTransactionLog"});
-          }
-          else if (notification.message.toString().toLocaleLowerCase().includes("payment channel")) {
-            log.i("Navigating to LightningInfo");
-            navigate("LightningInfo");
-          }
+        if (
+          result.authorizationStatus === AuthorizationStatus["AUTHORIZED"] &&
+          PLATFORM === "android"
+        ) {
+          const channelId = await notifee.createChannel({
+            id: ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_ID,
+            name: ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_NAME,
+            visibility: AndroidVisibility["PUBLIC"],
+            importance: AndroidImportance["HIGH"],
+            sound: "default",
+          });
         }
-      }),
-    });
+      }
+    } catch (error: any) {
+      // TODO(hsjoberg): Perhaps should be handled in the lib instead?
+      if (error.domain === "UNErrorDomain") {
+        return;
+      }
 
-    if (PLATFORM === "android") {
-      PushNotification.createChannel({
-          channelId: ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_ID,
-          channelName: ANDROID_PUSH_NOTIFICATION_PUSH_CHANNEL_NAME,
-        },
-        () => {}
-      );
+      throw error;
     }
   }),
 
-  localNotification: thunk((_, { message, importance }, { getStoreState }) => {
+  startPersistentService: thunk(async () => {
+    log.i("starting notifee persistent service");
+    notifee.registerForegroundService(() => {
+      return new Promise(() => {});
+    });
+    const channelId = await notifee.createChannel({
+      id: "blixt",
+      name: "Blixt Wallet",
+    });
+    notifee.displayNotification({
+      title: "Blixt Wallet",
+      body: "",
+      android: {
+        smallIcon: "ic_small_icon",
+        channelId,
+        asForegroundService: true,
+        colorized: false,
+        ongoing: true,
+      },
+    });
+  }),
+
+  stopPersistentService: thunk(async () => {
+    log.i("STOPPING notifee persistent service");
+    await notifee.stopForegroundService();
+  }),
+
+  localNotification: thunk((_, { message }, { getStoreState }) => {
     if (getStoreState().settings.pushNotificationsEnabled) {
-      localNotification(
-        message,
-        importance ?? "default"
-      );
+      if (PLATFORM === "android" || PLATFORM === "ios") {
+        localNotification(message);
+      } else {
+        toast(message);
+      }
     }
   }),
 };

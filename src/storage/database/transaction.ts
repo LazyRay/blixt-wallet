@@ -1,13 +1,14 @@
-import { SQLiteDatabase } from "react-native-sqlite-storage";
+import { Database } from "react-native-turbo-sqlite";
+
 import { queryInsert, queryMulti, querySingle, query } from "./db-utils";
-import Long from "long";
-import { ILNUrlPayResponse } from "../../state/LNURL";
-import { ILightningServices}  from "../../utils/lightning-services";
+import { ILNUrlPayResponse, ILNUrlPayResponsePayerData } from "../../state/LNURL";
+import { ILightningServices } from "../../utils/lightning-services";
 import { hexToUint8Array, bytesToHexString } from "../../utils";
 
 export interface IDBTransaction {
   id: number;
   date: string;
+  duration: number | null;
   expire: string;
   value: string;
   valueMsat: string;
@@ -30,22 +31,28 @@ export interface IDBTransaction {
   locationLat: number | null;
   website: string | null;
   type: string;
-  preimage: string,
+  preimage: string;
   lnurlPayResponse: string | null;
   identifiedService: string | null;
   note: string | null;
+  lightningAddress: string | null;
+  lud16IdentifierMimeType: string | null;
+  lud18PayerDataName: string | null;
+  lud18PayerDataIdentifier: string | null;
+  lud18PayerDataEmail: string | null;
 }
 
 export interface ITransaction {
   id?: number;
-  date: Long;
-  expire: Long;
-  value: Long;
-  valueMsat: Long;
-  amtPaidSat: Long;
-  amtPaidMsat: Long;
-  fee: Long | null;
-  feeMsat: Long | null;
+  date: bigint;
+  duration: number | null;
+  expire: bigint;
+  value: bigint;
+  valueMsat: bigint;
+  amtPaidSat: bigint;
+  amtPaidMsat: bigint;
+  fee: bigint | null;
+  feeMsat: bigint | null;
   description: string;
   remotePubkey: string;
   paymentRequest: string;
@@ -60,11 +67,14 @@ export interface ITransaction {
   locationLong: number | null;
   locationLat: number | null;
   website: string | null;
-  type: "NORMAL" | "WEBLN" | "LNURL" | "DUNDER_ONDEMANDCHANNEL";
-  preimage: Uint8Array,
+  type: "NORMAL" | "WEBLN" | "LNURL" | "DUNDER_ONDEMANDCHANNEL" | "LIGHTNINGBOX_FORWARD";
+  preimage: Uint8Array;
   lnurlPayResponse: ILNUrlPayResponse | null;
-  identifiedService: keyof ILightningServices  | null;
+  identifiedService: keyof ILightningServices | null;
   note?: string | null;
+  lightningAddress: string | null;
+  lud16IdentifierMimeType: string | null;
+  lud18PayerData: ILNUrlPayResponsePayerData | null;
 
   hops: ITransactionHop[];
 }
@@ -72,30 +82,30 @@ export interface ITransaction {
 export interface ITransactionHop {
   id?: number;
   txId?: number;
-  chanId: Long | null;
-  chanCapacity: Long | null;
-  amtToForward: Long | null;
-  amtToForwardMsat: Long | null;
-  fee: Long | null;
-  feeMsat: Long | null;
+  chanId: bigint | null;
+  chanCapacity: bigint | null;
+  amtToForward: bigint | null;
+  amtToForwardMsat: bigint | null;
+  fee: bigint | null;
+  feeMsat: bigint | null;
   expiry: number | null;
   pubKey: string | null;
 }
 
-export const clearTransactions = async (db: SQLiteDatabase) => {
-  await query(
-    db,
-    `DELETE FROM tx`,
-    [],
-  );
+export const clearTransactions = async (db: Database) => {
+  await query(db, `DELETE FROM tx`, []);
 };
 
-export const createTransaction = async (db: SQLiteDatabase, transaction: ITransaction): Promise<number> => {
+export const createTransaction = async (
+  db: Database,
+  transaction: ITransaction,
+): Promise<number> => {
   const txId = await queryInsert(
     db,
     `INSERT INTO tx
     (
       date,
+      duration,
       expire,
       value,
       valueMsat,
@@ -121,10 +131,21 @@ export const createTransaction = async (db: SQLiteDatabase, transaction: ITransa
       preimage,
       lnurlPayResponse,
       identifiedService,
-      note
+      note,
+      lightningAddress,
+      lud16IdentifierMimeType,
+      lud18PayerDataName,
+      lud18PayerDataIdentifier,
+      lud18PayerDataEmail
     )
     VALUES
     (
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
+      ?,
       ?,
       ?,
       ?,
@@ -155,6 +176,7 @@ export const createTransaction = async (db: SQLiteDatabase, transaction: ITransa
     )`,
     [
       transaction.date.toString(),
+      transaction.duration ?? null,
       transaction.expire.toString(),
       transaction.value.toString(),
       transaction.valueMsat.toString(),
@@ -181,6 +203,11 @@ export const createTransaction = async (db: SQLiteDatabase, transaction: ITransa
       transaction.lnurlPayResponse ? JSON.stringify(transaction.lnurlPayResponse) : null,
       transaction.identifiedService,
       transaction.note ?? null,
+      transaction.lightningAddress ?? null,
+      transaction.lud16IdentifierMimeType ?? null,
+      transaction.lud18PayerData?.name ?? null,
+      transaction.lud18PayerData?.identifier ?? null,
+      transaction.lud18PayerData?.email ?? null,
     ],
   );
 
@@ -212,16 +239,19 @@ export const createTransaction = async (db: SQLiteDatabase, transaction: ITransa
 };
 
 // TODO fee is not included here
-export const updateTransaction = async (db: SQLiteDatabase, transaction: ITransaction): Promise<void> => {
+export const updateTransaction = async (db: Database, transaction: ITransaction): Promise<void> => {
   await query(
     db,
     `UPDATE tx
     SET date = ?,
+        duration = ?,
         expire = ?,
         value = ?,
         valueMsat = ?,
         amtPaidSat = ?,
         amtPaidMsat = ?,
+        fee = ?,
+        feeMsat = ?,
         description = ?,
         remotePubkey = ?,
         status = ?,
@@ -240,15 +270,23 @@ export const updateTransaction = async (db: SQLiteDatabase, transaction: ITransa
         preimage = ?,
         lnurlPayResponse = ?,
         identifiedService = ?,
-        note = ?
+        note = ?,
+        lightningAddress = ?,
+        lud16IdentifierMimeType = ?,
+        lud18PayerDataName = ?,
+        lud18PayerDataIdentifier = ?,
+        lud18PayerDataEmail = ?
     WHERE id = ?`,
     [
       transaction.date.toString(),
+      transaction.duration,
       transaction.expire.toString(),
       transaction.value.toString(),
       transaction.valueMsat.toString(),
       transaction.amtPaidSat.toString(),
       transaction.amtPaidMsat.toString(),
+      transaction.fee?.toString(),
+      transaction.feeMsat?.toString(),
       transaction.description,
       transaction.remotePubkey,
       transaction.status,
@@ -268,33 +306,44 @@ export const updateTransaction = async (db: SQLiteDatabase, transaction: ITransa
       transaction.lnurlPayResponse ? JSON.stringify(transaction.lnurlPayResponse) : null,
       transaction.identifiedService,
       transaction.note ?? null,
+      transaction.lightningAddress ?? null,
+      transaction.lud16IdentifierMimeType ?? null,
+      transaction.lud18PayerData?.name ?? null,
+      transaction.lud18PayerData?.identifier ?? null,
+      transaction.lud18PayerData?.email ?? null,
       transaction.id,
     ],
   );
 };
 
-export const getTransactionHops = async (db: SQLiteDatabase, txId: number): Promise<ITransactionHop[]> => {
+export const getTransactionHops = async (
+  db: Database,
+  txId: number,
+): Promise<ITransactionHop[]> => {
   return await queryMulti<ITransactionHop>(db, `SELECT * FROM tx_hops WHERE txId = ?`, [txId]);
 };
 
-export const getTransactions = async (db: SQLiteDatabase, getExpired: boolean): Promise<ITransaction[]> => {
+export const getTransactions = async (
+  db: Database,
+  getExpired: boolean,
+): Promise<ITransaction[]> => {
   const sql = getExpired
     ? `SELECT * FROM tx ORDER BY date DESC;`
-    : `SELECT * FROM tx WHERE status != "EXPIRED" ORDER BY date DESC;`
-  ;
-
-  const transactions = await queryMulti<IDBTransaction>(db, sql);
+    : `SELECT * FROM tx WHERE status != ? ORDER BY date DESC;`;
+  const transactions = await queryMulti<IDBTransaction>(db, sql, getExpired ? [] : ["EXPIRED"]);
   try {
-    return await Promise.all(transactions.map(async (transaction) => ({
-      ...convertDBTransaction(transaction),
-      // hops: await queryMulti<ITransactionHop>(db, `SELECT * FROM tx_hops WHERE txId = ?`, [transaction.id!]),
-    }))) as ITransaction[];
-  } catch (e) {
+    return (await Promise.all(
+      transactions.map(async (transaction) => ({
+        ...convertDBTransaction(transaction),
+        // hops: await queryMulti<ITransactionHop>(db, `SELECT * FROM tx_hops WHERE txId = ?`, [transaction.id!]),
+      })),
+    )) as ITransaction[];
+  } catch (e: any) {
     throw new Error("Error reading transactions from DB: " + e.message);
   }
 };
 
-export const getTransaction = async (db: SQLiteDatabase, id: number): Promise<ITransaction | null> => {
+export const getTransaction = async (db: Database, id: number): Promise<ITransaction | null> => {
   const result = await querySingle<IDBTransaction>(db, `SELECT * FROM tx WHERE id = ?`, [id]);
   return (result && convertDBTransaction(result)) || null;
 };
@@ -303,18 +352,32 @@ const convertDBTransaction = (transaction: IDBTransaction): ITransaction => {
   let lnurlPayResponse: ILNUrlPayResponse | null = null;
   try {
     lnurlPayResponse = JSON.parse(transaction.lnurlPayResponse ?? "null");
-  } catch (e) { }
+  } catch (e) {}
+
+  let lud18PayerData: ILNUrlPayResponsePayerData | null = null;
+  if (
+    transaction.lud18PayerDataName ||
+    transaction.lud18PayerDataIdentifier ||
+    transaction.lud18PayerDataEmail
+  ) {
+    lud18PayerData = {
+      name: transaction.lud18PayerDataName ?? undefined,
+      identifier: transaction.lud18PayerDataIdentifier ?? undefined,
+      email: transaction.lud18PayerDataEmail ?? undefined,
+    };
+  }
 
   return {
     id: transaction.id!,
-    date: Long.fromString(transaction.date),
-    expire: Long.fromString(transaction.expire),
-    value: Long.fromString(transaction.value),
-    valueMsat: Long.fromString(transaction.valueMsat),
-    amtPaidSat: Long.fromString(transaction.amtPaidSat),
-    amtPaidMsat: Long.fromString(transaction.amtPaidMsat),
-    fee: transaction.fee ? Long.fromString(transaction.fee) : null,
-    feeMsat: transaction.feeMsat ? Long.fromString(transaction.feeMsat) : null,
+    date: BigInt(transaction.date),
+    duration: transaction.duration,
+    expire: BigInt(transaction.expire),
+    value: BigInt(transaction.value),
+    valueMsat: BigInt(transaction.valueMsat),
+    amtPaidSat: BigInt(transaction.amtPaidSat),
+    amtPaidMsat: BigInt(transaction.amtPaidMsat),
+    fee: transaction.fee ? BigInt(transaction.fee) : null,
+    feeMsat: transaction.feeMsat ? BigInt(transaction.feeMsat) : null,
     description: transaction.description,
     remotePubkey: transaction.remotePubkey,
     paymentRequest: transaction.paymentRequest,
@@ -329,11 +392,14 @@ const convertDBTransaction = (transaction: IDBTransaction): ITransaction => {
     locationLong: transaction.locationLong,
     locationLat: transaction.locationLat,
     website: transaction.website,
-    type: transaction.type as ITransaction["type"] || "NORMAL",
+    type: (transaction.type as ITransaction["type"]) || "NORMAL",
     preimage: transaction.preimage ? hexToUint8Array(transaction.preimage) : new Uint8Array([0]),
     lnurlPayResponse,
     identifiedService: transaction.identifiedService as ITransaction["identifiedService"],
     note: transaction.note,
+    lightningAddress: transaction.lightningAddress,
+    lud16IdentifierMimeType: transaction.lud16IdentifierMimeType,
+    lud18PayerData,
     hops: [],
   };
 };

@@ -1,13 +1,12 @@
 import React, { useLayoutEffect } from "react";
 import { View, Share, StyleSheet } from "react-native";
-import Clipboard from "@react-native-community/clipboard";
+import Clipboard from "@react-native-clipboard/clipboard";
 import { Text, H1, H3, Spinner } from "native-base";
 import { RouteProp } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 import { ReceiveStackParamList } from "./index";
 import { useStoreState } from "../../state/store";
-import { lnrpc } from "../../../proto/proto";
 import QrCode from "../../components/QrCode";
 import { formatBitcoin } from "../../utils/bitcoin-units";
 import Ticker from "../../components/Ticker";
@@ -18,18 +17,26 @@ import Content from "../../components/Content";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { toast } from "../../utils";
 
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
+import { AddInvoiceResponse } from "react-native-turbo-lnd/protos/lightning_pb";
+
 interface IReceiveQRProps {
   navigation: StackNavigationProp<ReceiveStackParamList, "ReceiveQr">;
   route: RouteProp<ReceiveStackParamList, "ReceiveQr">;
 }
 export default function ReceiveQr({ navigation, route }: IReceiveQRProps) {
-  const invoice: lnrpc.AddInvoiceResponse = route.params.invoice;
-  const transaction = useStoreState((store) => store.transaction.getTransactionByPaymentRequest(invoice.paymentRequest));
+  const t = useTranslation(namespaces.receive.receiveQr).t;
+  const invoice: AddInvoiceResponse = route.params.invoice;
+  const transaction = useStoreState((store) =>
+    store.transaction.getTransactionByPaymentRequest(invoice.paymentRequest),
+  );
   const bitcoinUnit = useStoreState((store) => store.settings.bitcoinUnit);
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: "Receive",
+      headerTitle: t("title"),
+      headerBackTitle: t("buttons.back", { ns: namespaces.common }),
       headerShown: true,
     });
   }, [navigation]);
@@ -50,7 +57,7 @@ export default function ReceiveQr({ navigation, route }: IReceiveQRProps) {
 
   const onPressPaymentRequest = () => {
     Clipboard.setString(transaction.paymentRequest);
-    toast("Copied to clipboard", undefined, "warning");
+    toast(t("msg.clipboardCopy", { ns: namespaces.common }), undefined, "warning");
   };
 
   const onQrPress = async () => {
@@ -62,22 +69,25 @@ export default function ReceiveQr({ navigation, route }: IReceiveQRProps) {
   return (
     <Container testID="qr">
       <View style={style.container}>
-        <H1 style={style.scanThisQr}>Scan this QR code</H1>
+        <H1 style={style.scanThisQr}>{t("qr.title")}</H1>
         <Text testID="expire" style={style.expires}>
-          <>Expires in </>
-          <Ticker expire={transaction.expire.toNumber()} />
+          <Ticker expire={Number(transaction.expire)} />
         </Text>
-        <QrCode size={smallScreen ? 225 : undefined} data={transaction.paymentRequest.toUpperCase()} onPress={onQrPress} />
+        <QrCode
+          size={smallScreen ? 225 : undefined}
+          data={transaction.paymentRequest.toUpperCase()}
+          onPress={onQrPress}
+        />
         <View style={{ width: "89%", marginBottom: 16 }} testID="payment-request-string">
           <CopyAddress text={transaction.paymentRequest} onPress={onPressPaymentRequest} />
         </View>
-        {transaction.value?.neq(0) &&
+        {transaction.value !== BigInt(0) && (
           <H3 testID="pay-amount">{formatBitcoin(transaction.value, bitcoinUnit)}</H3>
-        }
+        )}
       </View>
     </Container>
   );
-};
+}
 
 const style = StyleSheet.create({
   container: {

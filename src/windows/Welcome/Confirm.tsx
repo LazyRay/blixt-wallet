@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { StatusBar, StyleSheet, Alert } from "react-native";
-import { View, Button, H1, Card, CardItem, Text, Spinner, Icon, H3 } from "native-base";
+import { View, H1, Card, CardItem, Text, Spinner, Icon, H3 } from "native-base";
+import { Button } from "../../components/Button";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 import { WelcomeStackParamList } from "./index";
@@ -10,11 +11,16 @@ import style from "./style";
 import { smallScreen } from "../../utils/device";
 import Container from "../../components/Container";
 import { PLATFORM } from "../../utils/constants";
+import GoBackIcon from "../../components/GoBackIcon";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 interface IProps {
   navigation: StackNavigationProp<WelcomeStackParamList, "Confirm">;
 }
 export default function Confirm({ navigation }: IProps) {
+  const t = useTranslation(namespaces.welcome.confirm).t;
   const [confirmedWords, setConfirmedWords] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<Array<string | undefined>>(new Array(24).fill(undefined));
   const [proceeding, setProceeding] = useState(false);
@@ -52,7 +58,7 @@ export default function Confirm({ navigation }: IProps) {
   if (seed.length === confirmedWords.length) {
     seedCorrect = true;
     if (JSON.stringify(seed) !== JSON.stringify(confirmedWords)) {
-      Alert.alert("Try again", "Sorry, you wrote the words in the wrong order, please try again.");
+      Alert.alert(t("alert.title"), t("alert.msg"));
       setConfirmedWords([]);
       setSelectedWords([]);
     }
@@ -94,6 +100,7 @@ export default function Confirm({ navigation }: IProps) {
         animated={true}
         translucent={true}
       />
+      {/* {PLATFORM !== "android" && <GoBackIcon style={style.goBack} />} */}
       <View style={style.content}>
         <View style={style.upperContent}>
           <Card style={style.card}>
@@ -143,9 +150,9 @@ export default function Confirm({ navigation }: IProps) {
           <View style={style.text}>
             <View style={style.headerView}>
               {smallScreen ?
-                <H3 style={style.textHeader}>Confirm your seed</H3>
+                <H3 style={style.textHeader}>{t("seed.title")}</H3>
                 :
-                <H1 style={style.textHeader}>Confirm your seed</H1>
+                <H1 style={style.textHeader}>{t("seed.title")}</H1>
               }
               {confirmedWords.length > 0 &&
                 <Icon type="FontAwesome5" name="backspace" style={{ fontSize: 24, marginRight: 10, marginBottom: 6 }} onPress={onBackspacePress}  />
@@ -178,13 +185,13 @@ export default function Confirm({ navigation }: IProps) {
             <Button onPress={() => { if (!proceeding) { setLoadSpinnerForButton("skip"); onContinue(); }}} block={true} style={{width: "50%", marginRight: 5 }}>
               <>
                 {loadSpinnerForButton === "skip" && <Spinner color={blixtTheme.light} />}
-                {loadSpinnerForButton !== "skip" && <Text>Skip</Text>}
+                {loadSpinnerForButton !== "skip" && <Text>{t("buttons.skip",{ns:namespaces.common})}</Text>}
               </>
             </Button>
             <Button disabled={!seedCorrect} onPress={() => { if (!proceeding) { setLoadSpinnerForButton("proceed"); onContinue(); }}} block={true} style={{width: "50%", marginLeft: 5 }}>
               <>
                 {loadSpinnerForButton === "proceed" && <Spinner color={blixtTheme.light} />}
-                {loadSpinnerForButton !== "proceed" && <Text>Proceed</Text>}
+                {loadSpinnerForButton !== "proceed" && <Text>{t("buttons.proceed",{ns:namespaces.common})}</Text>}
               </>
             </Button>
           </View>

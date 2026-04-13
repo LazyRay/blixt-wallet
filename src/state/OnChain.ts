@@ -1,17 +1,32 @@
-import { DeviceEventEmitter } from "react-native";
 import { Action, action, Thunk, thunk, Computed, computed } from "easy-peasy";
-import Long from "long";
 
 import { IStoreModel } from "./index";
-import { IStoreInjections } from "./store";
-import { lnrpc } from "../../proto/proto";
+import { toast } from "../utils";
+
+import {
+  getTransactions,
+  newAddress,
+  sendCoins,
+  subscribeTransactions,
+  walletBalance,
+  walletKitBumpFee,
+} from "react-native-turbo-lnd";
+import {
+  AddressType,
+  GetTransactionsRequestSchema,
+  NewAddressResponse,
+  SendCoinsResponse,
+  Transaction,
+  WalletBalanceResponse,
+} from "react-native-turbo-lnd/protos/lightning_pb";
+
+import { create } from "@bufbuild/protobuf";
+import { BumpFeeResponse } from "react-native-turbo-lnd/protos/walletrpc/walletkit_pb";
 
 import logger from "./../utils/log";
-import { decodeSubscribeTransactionsResult } from "../lndmobile/onchain";
-import { LndMobileEventEmitter } from "../utils/event-listener";
 const log = logger("OnChain");
 
-export interface IBlixtTransaction extends lnrpc.ITransaction {
+export interface IBlixtTransaction extends Transaction {
   type: "NORMAL" | "CHANNEL_OPEN" | "CHANNEL_CLOSE";
 }
 
@@ -21,7 +36,7 @@ export interface ISetTransactionsPayload {
 
 export interface IGetAddressPayload {
   forceNew?: boolean;
-  p2sh?: boolean;
+  p2wkh?: boolean;
 }
 
 export interface ISendCoinsPayload {
@@ -35,143 +50,159 @@ export interface ISendCoinsAllPayload {
   feeRate?: number;
 }
 
-export interface IOnChainModel {
-  initialize: Thunk<IOnChainModel, void, IStoreInjections, IStoreModel>;
-  getBalance: Thunk<IOnChainModel, void, IStoreInjections>;
-  getAddress: Thunk<IOnChainModel, IGetAddressPayload, IStoreInjections>;
-  getTransactions: Thunk<IOnChainModel, void, IStoreInjections, IStoreModel>;
-  sendCoins: Thunk<IOnChainModel, ISendCoinsPayload, IStoreInjections, any, Promise<lnrpc.ISendCoinsResponse>>;
-  sendCoinsAll: Thunk<IOnChainModel, ISendCoinsAllPayload, IStoreInjections, any, Promise<lnrpc.ISendCoinsResponse>>;
+export interface IBumpFeePayload {
+  feeRate: number;
+  txid: string;
+  index: number;
+}
 
-  setBalance: Action<IOnChainModel, lnrpc.IWalletBalanceResponse>;
-  setUnconfirmedBalance: Action<IOnChainModel, lnrpc.IWalletBalanceResponse>;
-  setAddress: Action<IOnChainModel, lnrpc.NewAddressResponse>;
-  setAddressType: Action<IOnChainModel, lnrpc.AddressType>;
+export interface IOnChainModel {
+  initialize: Thunk<IOnChainModel, void, any, IStoreModel>;
+  getBalance: Thunk<IOnChainModel, void, any>;
+  getAddress: Thunk<IOnChainModel, IGetAddressPayload, any, IStoreModel>;
+  getTransactions: Thunk<IOnChainModel, void, any, IStoreModel>;
+  sendCoins: Thunk<
+    IOnChainModel,
+    ISendCoinsPayload,
+    any,
+    any,
+    Promise<SendCoinsResponse>
+  >;
+  sendCoinsAll: Thunk<
+    IOnChainModel,
+    ISendCoinsAllPayload,
+    any,
+    any,
+    Promise<SendCoinsResponse>
+  >;
+
+  setBalance: Action<IOnChainModel, WalletBalanceResponse>;
+  setUnconfirmedBalance: Action<IOnChainModel, WalletBalanceResponse>;
+  setAddress: Action<IOnChainModel, NewAddressResponse>;
+  setAddressType: Action<IOnChainModel, AddressType>;
   setTransactions: Action<IOnChainModel, ISetTransactionsPayload>;
   setTransactionSubscriptionStarted: Action<IOnChainModel, boolean>;
 
   addToTransactionNotificationBlacklist: Action<IOnChainModel, string>;
 
-  balance: Long;
-  unconfirmedBalance: Long;
-  totalBalance: Computed<IOnChainModel, Long>;
+  balance: bigint;
+  unconfirmedBalance: bigint;
+  totalBalance: Computed<IOnChainModel, bigint>;
   address?: string;
-  addressType?: lnrpc.AddressType;
+  addressType?: AddressType;
   transactions: IBlixtTransaction[];
   transactionSubscriptionStarted: boolean;
 
-  getOnChainTransactionByTxId: Computed<IOnChainModel, (txId: string) => lnrpc.ITransaction | undefined>;
+  getOnChainTransactionByTxId: Computed<IOnChainModel, (txId: string) => Transaction | undefined>;
 
   transactionNotificationBlacklist: string[];
+  bumpFee: Thunk<IOnChainModel, IBumpFeePayload, any, any, Promise<BumpFeeResponse>>;
 }
 
 export const onChain: IOnChainModel = {
-  initialize: thunk(async (actions, _, { getState, getStoreActions, getStoreState, injections }) => {
+  initialize: thunk(async (actions, _, { getState, getStoreActions, getStoreState }) => {
     log.i("Initializing");
-    await Promise.all([
-      actions.getAddress({}),
-      actions.getBalance(undefined),
-    ]);
+    await Promise.all([actions.getAddress({}), actions.getBalance(undefined)]);
 
     if (getState().transactionSubscriptionStarted) {
       log.d("OnChain.initialize called when subscription already started");
       return;
-    }
-    else {
-      await injections.lndMobile.onchain.subscribeTransactions();
-      LndMobileEventEmitter.addListener("SubscribeTransactions", async (e: any) => {
-        log.d("Event SubscribeTransactions", [e]);
-        if (e.data === "") {
-          log.i("Got e.data empty from SubscribeTransactions. Skipping transaction");
-          return;
-        }
-        await actions.getBalance();
+    } else {
+      subscribeTransactions(
+        {},
+        async (transaction) => {
+          try {
+            log.d("Event SubscribeTransactions", [transaction]);
 
-        if (getStoreState().onboardingState === "SEND_ONCHAIN") {
-          log.i("Changing onboarding state to DO_BACKUP");
-          getStoreActions().changeOnboardingState("DO_BACKUP");
-        }
+            await actions.getBalance();
 
-        const transaction = decodeSubscribeTransactionsResult(e.data);
-        if (
-            !getState().transactionNotificationBlacklist.includes(transaction.txHash) &&
-            transaction.numConfirmations > 0 &&
-            Long.isLong(transaction.amount) &&
-            transaction.amount.greaterThan(0)
-          ) {
-          getStoreActions().notificationManager.localNotification({
-            message: "Received on-chain transaction",
-            importance: "high",
-          });
-          actions.addToTransactionNotificationBlacklist(transaction.txHash);
-        }
-      });
+            if (getStoreState().onboardingState === "SEND_ONCHAIN") {
+              log.i("Changing onboarding state to DO_BACKUP");
+              getStoreActions().changeOnboardingState("DO_BACKUP");
+            }
+
+            if (
+              !getState().transactionNotificationBlacklist.includes(transaction.txHash) &&
+              transaction.numConfirmations > 0 &&
+              Number(transaction.amount) > 0
+            ) {
+              getStoreActions().notificationManager.localNotification({
+                message: "Received on-chain transaction",
+              });
+              actions.addToTransactionNotificationBlacklist(transaction.txHash);
+
+              actions.getTransactions();
+            }
+          } catch (error: any) {
+            toast(error.message, undefined, "danger");
+          }
+        },
+        (error) => {
+          log.e("Got error from SubscribeTransactions", [error]);
+        },
+      );
 
       actions.setTransactionSubscriptionStarted(true);
     }
+
+    actions.getTransactions();
     return true;
   }),
 
-  getBalance: thunk(async (actions, _, { injections }) => {
-    const { walletBalance } = injections.lndMobile.onchain;
-    const walletBalanceResponse = await walletBalance();
+  getBalance: thunk(async (actions, _) => {
+    const walletBalanceResponse = await walletBalance({});
 
-    // There's a bug here where totalBalance is
-    // set to 0 instead of Long(0)
-    if ((walletBalanceResponse.totalBalance as unknown) === 0) {
-      walletBalanceResponse.totalBalance = Long.fromNumber(0);
-    }
-    if ((walletBalanceResponse.confirmedBalance as unknown) === 0) {
-      walletBalanceResponse.confirmedBalance = Long.fromNumber(0);
-    }
-    if ((walletBalanceResponse.unconfirmedBalance as unknown) === 0) {
-      walletBalanceResponse.unconfirmedBalance = Long.fromNumber(0);
-    }
     actions.setBalance(walletBalanceResponse);
     actions.setUnconfirmedBalance(walletBalanceResponse);
   }),
 
-  getAddress: thunk(async (actions, { forceNew, p2sh }, { injections }) => {
-    const { newAddress } = injections.lndMobile.onchain;
-    let type: lnrpc.AddressType;
+  getAddress: thunk(async (actions, { forceNew, p2wkh }) => {
+    try {
+      let type: AddressType;
 
-    if (forceNew) {
-      if (p2sh) {
-        type = lnrpc.AddressType.NESTED_PUBKEY_HASH;
+      if (forceNew) {
+        if (p2wkh) {
+          type = AddressType.WITNESS_PUBKEY_HASH;
+        } else {
+          type = AddressType.TAPROOT_PUBKEY;
+        }
       } else {
-        type = lnrpc.AddressType.WITNESS_PUBKEY_HASH;
+        if (p2wkh) {
+          type = AddressType.UNUSED_WITNESS_PUBKEY_HASH;
+        } else {
+          type = AddressType.UNUSED_TAPROOT_PUBKEY;
+        }
       }
-    } else {
-      if (p2sh) {
-        type = lnrpc.AddressType.UNUSED_NESTED_PUBKEY_HASH;
-      } else {
-        type = lnrpc.AddressType.UNUSED_WITNESS_PUBKEY_HASH;
-      }
+
+      const newAddressResponse = await newAddress({
+        type,
+      });
+
+      actions.setAddress(newAddressResponse);
+      actions.setAddressType(type);
+    } catch (error: any) {
+      throw new Error("Error while generating bitcoin address: " + error.message);
     }
-
-    const newAddressResponse = await newAddress(type);
-
-    actions.setAddress(newAddressResponse);
-    actions.setAddressType(type);
   }),
 
-  getTransactions: thunk(async (actions, _, { getStoreState, injections }) => {
-    const { getTransactions } = injections.lndMobile.onchain;
+  getTransactions: thunk(async (actions, _, { getStoreState }) => {
+    const transactionDetails = await getTransactions(create(GetTransactionsRequestSchema));
     const channelEvents = getStoreState().channel.channelEvents;
-    const transactionDetails = await getTransactions();
 
     const transactions: IBlixtTransaction[] = [];
     for (const tx of transactionDetails.transactions) {
       let type: IBlixtTransaction["type"] = "NORMAL";
-      const matchChannelEvent = channelEvents.find((channelEvent) => channelEvent.txId === tx.txHash);
+      const matchChannelEvent = channelEvents.find(
+        (channelEvent) => channelEvent.txId === tx.txHash,
+      );
       if (matchChannelEvent) {
         switch (matchChannelEvent.type) {
           case "OPEN":
             type = "CHANNEL_OPEN";
-          break;
+            break;
           case "CLOSE":
             type = "CHANNEL_CLOSE";
-          break;
+            break;
         }
       }
       transactions.push({
@@ -183,46 +214,76 @@ export const onChain: IOnChainModel = {
     actions.setTransactions({ transactions });
   }),
 
-  sendCoins: thunk(async (actions, { address, sat, feeRate }, { injections }) => {
-    const { sendCoins } = injections.lndMobile.onchain;
-    const response = await sendCoins(address, sat, feeRate );
+  sendCoins: thunk(async (actions, { address, sat, feeRate }) => {
+    const response = await sendCoins({
+      addr: address,
+      amount: BigInt(sat),
+      satPerVbyte: feeRate ? BigInt(feeRate) : undefined,
+    });
+
     actions.addToTransactionNotificationBlacklist(response.txid);
     return response;
   }),
 
-  sendCoinsAll: thunk(async (actions, { address, feeRate }, { injections }) => {
-    const { sendCoinsAll } = injections.lndMobile.onchain;
-    const response = await sendCoinsAll(address, feeRate);
+  sendCoinsAll: thunk(async (actions, { address, feeRate }) => {
+    const response = await sendCoins({
+      sendAll: true,
+      addr: address,
+      satPerVbyte: feeRate ? BigInt(feeRate) : undefined,
+    });
+
     actions.addToTransactionNotificationBlacklist(response.txid);
     return response;
   }),
 
-  setBalance: action((state, payload) => { state.balance = payload.confirmedBalance!; }),
-  setUnconfirmedBalance: action((state, payload) => { state.unconfirmedBalance = payload.unconfirmedBalance!; }),
-  setAddress: action((state, payload) => { state.address = payload.address; }),
-  setAddressType: action((state, payload) => { state.addressType = payload; }),
-  setTransactions: action((state, payload) => { state.transactions = payload.transactions; }),
-  setTransactionSubscriptionStarted: action((state, payload) => { state.transactionSubscriptionStarted = payload }),
+  bumpFee: thunk(async (_, { feeRate, txid, index }) => {
+    const response = await walletKitBumpFee({
+      satPerVbyte: BigInt(feeRate),
+      outpoint: {
+        txidStr: txid,
+        outputIndex: index,
+      },
+    });
+
+    return response;
+  }),
+
+  setBalance: action((state, payload) => {
+    state.balance = BigInt(payload.confirmedBalance.toString() || "0");
+  }),
+  setUnconfirmedBalance: action((state, payload) => {
+    state.unconfirmedBalance = BigInt(payload.unconfirmedBalance.toString() || "0");
+  }),
+  setAddress: action((state, payload) => {
+    state.address = payload.address;
+  }),
+  setAddressType: action((state, payload) => {
+    state.addressType = payload;
+  }),
+  setTransactions: action((state, payload) => {
+    state.transactions = payload.transactions;
+  }),
+  setTransactionSubscriptionStarted: action((state, payload) => {
+    state.transactionSubscriptionStarted = payload;
+  }),
 
   addToTransactionNotificationBlacklist: action((state, payload) => {
     state.transactionNotificationBlacklist = [...state.transactionNotificationBlacklist, payload];
   }),
 
-  balance: Long.fromInt(0),
-  unconfirmedBalance: Long.fromInt(0),
-  totalBalance: computed((state) => state.balance.add(state.unconfirmedBalance)),
+  balance: BigInt(0),
+  unconfirmedBalance: BigInt(0),
+  totalBalance: computed((state) => state.balance + state.unconfirmedBalance),
   transactions: [],
   transactionSubscriptionStarted: false,
 
-  getOnChainTransactionByTxId: computed(
-    (state) => {
-      return (txId: string) => {
-        return state.transactions.find((tx) => {
-          return txId === tx.txHash;
-        });
-      };
-    },
-  ),
+  getOnChainTransactionByTxId: computed((state) => {
+    return (txId: string) => {
+      return state.transactions.find((tx) => {
+        return txId === tx.txHash;
+      });
+    };
+  }),
 
   transactionNotificationBlacklist: [],
 };

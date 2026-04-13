@@ -4,42 +4,30 @@ import { Spinner } from "native-base";
 
 import { blixtTheme } from "../native-base-theme/variables/commonColor";
 import Container from "../components/Container";
-import { useStoreState, useStoreActions } from "../state/store";
+import { useStoreActions } from "../state/store";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../Main";
-import { CommonActions } from "@react-navigation/native";
-import { PLATFORM } from "../utils/constants";
+import { BLIXT_WEB_DEMO, PLATFORM } from "../utils/constants";
 
 export interface ILoadingProps {
   navigation: StackNavigationProp<RootStackParamList, "Loading">;
 }
 export default function Loading({ navigation }: ILoadingProps) {
   const checkDeeplink = useStoreActions((store) => store.deeplinkManager.checkDeeplink);
-  const ready = useStoreState((store) => store.lightning.ready);
 
   useEffect(() => {
     // tslint:disable-next-line
     (async () => {
       let cb = await checkDeeplink();
 
-      requestAnimationFrame(() => {
-        navigation.dispatch(
-          CommonActions.reset({
-             index: 0,
-             routes: [{ name: "Overview" }],
-          })
-        );
-        if (cb) {
-          setTimeout(() => {
-            cb(navigation);
-          }, 100);
-        } else if (PLATFORM === "web" && WEB_DEMO) {
-          navigation.navigate("WebInfo");
-        }
-      });
+      navigation.replace("Overview");
+      if (cb) {
+        cb(navigation);
+      } else if (PLATFORM === "web" && BLIXT_WEB_DEMO) {
+        navigation.navigate("WebInfo");
+      }
     })();
-  }, [ready]);
-
+  }, []);
 
   return (
     <Container centered>
@@ -56,7 +44,7 @@ export default function Loading({ navigation }: ILoadingProps) {
       </> */}
     </Container>
   );
-};
+}
 
 const style = StyleSheet.create({
   firstSync: {

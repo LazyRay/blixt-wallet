@@ -8,13 +8,12 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
-# MeiZu Fingerprint
 
+# MeiZu Fingerprint
 -keep class com.fingerprints.service.** { *; }
 -dontwarn com.fingerprints.service.**
 
 # Samsung Fingerprint
-
 -keep class com.samsung.android.sdk.** { *; }
 -dontwarn com.samsung.android.sdk.**
 
@@ -33,3 +32,15 @@
 -keep class lnrpc.** { *; }
 
 -keep class com.facebook.react.turbomodule.** { *; }
+
+-keep class org.torproject.jni.** { *; }
+
+-keep class com.blixtwallet.LndMobileScheduledSyncWorker { *; }
+-keep interface com.blixtwallet.LndCallback { *; }
+-keep interface com.blixtwallet.LndStreamListener { *; }
+-keep class com.blixtwallet.LndNative { *; }
+-keep class * implements com.blixtwallet.LndCallback { *; }
+
+-keepclasseswithmembers class * {
+    native <methods>;
+}

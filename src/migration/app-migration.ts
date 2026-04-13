@@ -1,38 +1,59 @@
 import { NativeModules } from "react-native";
-import { SQLiteDatabase } from "react-native-sqlite-storage";
+import { Database } from "react-native-turbo-sqlite";
 import { LndChainBackend } from "../state/Lightning";
-import { getWalletCreated, StorageItem, getItemObject, setItemObject, setItem, getItem } from "../storage/app";
-import { getPin, getSeed, removeSeed, setSeed, setPin, removePin, setWalletPassword } from "../storage/keystore";
+import {
+  getWalletCreated,
+  StorageItem,
+  getItemObject,
+  setItemObject,
+  setItem,
+  getItem,
+} from "../storage/app";
+import {
+  getPin,
+  getSeed,
+  removeSeed,
+  setSeed,
+  setPin,
+  removePin,
+  setWalletPassword,
+} from "../storage/keystore";
 import { Chain } from "../utils/build";
-import { DEFAULT_DUNDER_SERVER, DEFAULT_NEUTRINO_NODE } from "../utils/constants";
-const { LndMobile, LndMobileTools } = NativeModules;
+import {
+  DEFAULT_DUNDER_SERVER,
+  DEFAULT_LND_LOG_LEVEL,
+  DEFAULT_NEUTRINO_NODE,
+} from "../utils/constants";
+import { setupScheduledSyncWork } from "../lndmobile/scheduled-sync";
+
+// const { LndMobileTools } = NativeModules;
 
 export interface IAppMigration {
-  beforeLnd: (db: SQLiteDatabase, currentVersion: number) => Promise<void>;
+  beforeLnd: (db: Database, currentVersion: number) => Promise<void>;
 }
 
 export const appMigration: IAppMigration[] = [
   // Version 0
   {
-    async beforeLnd(db, i) { },
+    async beforeLnd(db, i) {},
   },
   // Version 1
   {
     async beforeLnd(db, i) {
-      await LndMobileTools.writeConfigFile();
+      // await LndMobileTools.writeConfigFile();
     },
   },
   // Version 2
   {
     async beforeLnd(db, i) {
       await setItemObject(StorageItem.clipboardInvoiceCheck, true);
-      await LndMobileTools.writeConfigFile();
+      // await LndMobileTools.writeConfigFile();
     },
   },
   // Version 3
   {
     async beforeLnd(db, i) {
-      await NativeModules.LndMobileScheduledSync.setupScheduledSyncWork();
+      await setupScheduledSyncWork();
       await setItemObject(StorageItem.scheduledSyncEnabled, true);
       await setItemObject(StorageItem.lastScheduledSync, 0);
       await setItemObject(StorageItem.lastScheduledSyncAttempt, 0);
@@ -52,14 +73,14 @@ export const appMigration: IAppMigration[] = [
   // Version 5
   {
     async beforeLnd(db, i) {
-      await db.executeSql("ALTER TABLE tx ADD tlvRecordName STRING");
+      await db.executeSql("ALTER TABLE tx ADD tlvRecordName STRING", []);
     },
   },
   // Version 6
   {
     async beforeLnd(db, i) {
-      await db.executeSql("ALTER TABLE tx ADD locationLong REAL");
-      await db.executeSql("ALTER TABLE tx ADD locationLat REAL");
+      await db.executeSql("ALTER TABLE tx ADD locationLong REAL", []);
+      await db.executeSql("ALTER TABLE tx ADD locationLat REAL", []);
     },
   },
   // Version 7
@@ -77,8 +98,8 @@ export const appMigration: IAppMigration[] = [
   // Version 8
   {
     async beforeLnd(db, i) {
-      await db.executeSql("ALTER TABLE tx ADD website TEXT NULL");
-      await db.executeSql("ALTER TABLE tx ADD type TEXT NOT NULL DEFAULT 'NORMAL'");
+      await db.executeSql("ALTER TABLE tx ADD website TEXT NULL", []);
+      await db.executeSql("ALTER TABLE tx ADD type TEXT NOT NULL DEFAULT 'NORMAL'", []);
     },
   },
   // Version 9
@@ -90,14 +111,14 @@ export const appMigration: IAppMigration[] = [
   // Version 10
   {
     async beforeLnd(db, i) {
-      await db.executeSql("ALTER TABLE tx ADD preimage TEXT NOT NULL DEFAULT '00'"); // hex string
-      await db.executeSql("ALTER TABLE tx ADD lnurlPayResponse TEXT NULL");
+      await db.executeSql("ALTER TABLE tx ADD preimage TEXT NOT NULL DEFAULT '00'", []); // hex string
+      await db.executeSql("ALTER TABLE tx ADD lnurlPayResponse TEXT NULL", []);
     },
   },
   // Version 11
   {
     async beforeLnd(db, i) {
-      await LndMobileTools.writeConfigFile();
+      // await LndMobileTools.writeConfigFile();
     },
   },
   // Version 12
@@ -121,7 +142,7 @@ export const appMigration: IAppMigration[] = [
   // Version 15
   {
     async beforeLnd(db, i) {
-      await LndMobileTools.writeConfigFile();
+      // await LndMobileTools.writeConfigFile();
     },
   },
   // Version 16
@@ -133,10 +154,10 @@ export const appMigration: IAppMigration[] = [
   // Version 17
   {
     async beforeLnd(db, i) {
-      await db.executeSql("ALTER TABLE tx ADD identifiedService TEXT NULL");
+      await db.executeSql("ALTER TABLE tx ADD identifiedService TEXT NULL", []);
       await setItemObject<boolean>(StorageItem.hideExpiredInvoices, true);
       await setItemObject<number>(StorageItem.lastGoogleDriveBackup, new Date().getTime());
-      await LndMobileTools.writeConfigFile();
+      // await LndMobileTools.writeConfigFile();
     },
   },
   // Version 18
@@ -148,7 +169,7 @@ export const appMigration: IAppMigration[] = [
   // Version 19
   {
     async beforeLnd(db, i) {
-      await db.executeSql("ALTER TABLE tx ADD note TEXT NULL");
+      await db.executeSql("ALTER TABLE tx ADD note TEXT NULL", []);
     },
   },
   // Version 20
@@ -205,7 +226,10 @@ export const appMigration: IAppMigration[] = [
   {
     async beforeLnd(db, i) {
       if (Chain === "mainnet") {
-        if ((await getItemObject<string[]>(StorageItem.neutrinoPeers))[0] === "btcd-mainnet.lightning.computer") {
+        if (
+          (await getItemObject<string[]>(StorageItem.neutrinoPeers))[0] ===
+          "btcd-mainnet.lightning.computer"
+        ) {
           await setItemObject<string[]>(StorageItem.neutrinoPeers, [DEFAULT_NEUTRINO_NODE]);
         }
       }
@@ -223,6 +247,145 @@ export const appMigration: IAppMigration[] = [
       if (Chain === "testnet") {
         await setItemObject<string[]>(StorageItem.neutrinoPeers, [DEFAULT_NEUTRINO_NODE]);
       }
+    },
+  },
+  // Version 26
+  {
+    async beforeLnd(db, i) {
+      await setItemObject<boolean>(StorageItem.requireGraphSync, false);
+    },
+  },
+  // Version 27
+  {
+    async beforeLnd(db, i) {
+      await setItemObject<boolean>(StorageItem.dunderEnabled, false);
+    },
+  },
+  // Version 28
+  {
+    async beforeLnd(db, i) {
+      await db.executeSql(
+        `CREATE TABLE contact (
+          id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+          domain TEXT NOT NULL,
+          type TEXT NOT NULL,
+          lightningAddress TEXT NULL,
+          lud16IdentifierMimeType TEXT NULL,
+          lnUrlPay TEXT NULL,
+          lnUrlWithdraw TEXT NULL,
+          note TEXT NOT NULL
+        )`,
+        [],
+      );
+      await db.executeSql("ALTER TABLE tx ADD lightningAddress TEXT NULL", []);
+      await db.executeSql("ALTER TABLE tx ADD lud16IdentifierMimeType TEXT NULL", []);
+    },
+  },
+  // Version 29
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.lndNoGraphCache, false);
+    },
+  },
+  // Version 30
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.multiPathPaymentsEnabled, true);
+    },
+  },
+  // Version 31
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.strictGraphPruningEnabled, false);
+    },
+  },
+  // Version 32
+  {
+    async beforeLnd(db, i) {
+      await db.executeSql("ALTER TABLE tx ADD duration REAL NULL", []);
+    },
+  },
+  // Version 33
+  {
+    async beforeLnd(db, i) {
+      await setItem(StorageItem.lndLogLevel, DEFAULT_LND_LOG_LEVEL);
+    },
+  },
+  // Version 34
+  {
+    async beforeLnd(db, i) {
+      await db.executeSql("ALTER TABLE contact ADD label TEXT NULL", []);
+    },
+  },
+  // Version 35
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.persistentServicesEnabled, false);
+    },
+  },
+  // Version 36
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.scheduledGossipSyncEnabled, false);
+    },
+  },
+  // Version 37
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.persistentServicesWarningShown, false);
+    },
+  },
+  // Version 38
+  {
+    async beforeLnd(db, i) {
+      await db.executeSql("ALTER TABLE tx ADD lud18PayerDataName TEXT NULL", []);
+      await db.executeSql("ALTER TABLE tx ADD lud18PayerDataIdentifier TEXT NULL", []);
+      await db.executeSql("ALTER TABLE tx ADD lud18PayerDataEmail TEXT NULL", []);
+    },
+  },
+  // Version 39
+  {
+    async beforeLnd(db, i) {
+      if (Chain === "mainnet") {
+        // Change the peers if the user hasn't manually changed it
+        const peers = await getItemObject<string[]>(StorageItem.neutrinoPeers);
+        if (peers.length === 1 && peers[0] === "node.blixtwallet.com") {
+          await setItemObject<string[]>(StorageItem.neutrinoPeers, DEFAULT_NEUTRINO_NODE);
+        }
+      }
+    },
+  },
+  // Version 40
+  {
+    async beforeLnd(db, i) {
+      setItemObject<boolean>(StorageItem.requireGraphSync, true);
+    },
+  },
+  // Version 41
+  {
+    async beforeLnd(db, i) {
+      if (Chain === "mainnet") {
+        const oldPeers = [
+          "node.blixtwallet.com",
+          "btcd.lnolymp.us",
+          "neutrino.noderunner.wtf",
+          "node.eldamar.icu",
+          "btcd-mainnet.lightning.computer",
+        ].join(",");
+
+        const userPeers = (await getItemObject<string[]>(StorageItem.neutrinoPeers)).join(",");
+
+        // Override current neutrino peers if the users have not changed their nodes
+        if (oldPeers === userPeers) {
+          await setItemObject<string[]>(StorageItem.neutrinoPeers, DEFAULT_NEUTRINO_NODE);
+        }
+      }
+    },
+  },
+  // Version 42
+  {
+    async beforeLnd(db, i) {
+      await setItem(StorageItem.lndChainBackend, "neutrino");
     },
   },
 ];

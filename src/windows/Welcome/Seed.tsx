@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { StatusBar } from "react-native";
-import { Text, View, Button, H1, Card, CardItem, H3 } from "native-base";
+import { Text, View, H1, Card, CardItem, H3 } from "native-base";
+import { Button } from "../../components/Button";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 import { WelcomeStackParamList } from "./index";
@@ -8,11 +9,17 @@ import { useStoreActions } from "../../state/store";
 import style from "./style";
 import { smallScreen } from "../../utils/device";
 import Container from "../../components/Container";
+import GoBackIcon from "../../components/GoBackIcon";
+import { PLATFORM } from "../../utils/constants";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 interface IProps {
   navigation: StackNavigationProp<WelcomeStackParamList, "Seed">;
 }
 export default function Seed({ navigation }: IProps) {
+  const t = useTranslation(namespaces.welcome.seed).t;
   const getSeed = useStoreActions((store) => store.security.getSeed);
   const [seed, setSeed] = useState<string[] | undefined>();
 
@@ -46,6 +53,7 @@ export default function Seed({ navigation }: IProps) {
         animated={true}
         translucent={true}
       />
+      {PLATFORM !== "android" && <GoBackIcon style={style.goBack} />}
       <View style={style.content}>
         <View style={style.upperContent}>
           <Card style={style.card}>
@@ -73,20 +81,20 @@ export default function Seed({ navigation }: IProps) {
         <View style={style.lowerContent}>
           <View style={style.text}>
             {smallScreen ?
-              <H3 style={style.textHeader}>Welcome to Blixt Wallet!</H3>
+              <H3 style={style.textHeader}>{t("title")}</H3>
               :
-              <H1 style={style.textHeader}>Welcome to Blixt Wallet!</H1>
+              <H1 style={style.textHeader}>{t("title")}</H1>
             }
             <Text>
-              This is your backup seed.{"\n"}{"\n"}
-              Write it down on a piece of paper and store it in a safe place.{"\n"}
-              Should you lose access to your wallet,{"\n"}you may be able to recover your funds by using your backup seed.{"\n"}{"\n"}
-              The seed standard being used is aezeed.
+              {t("msg")}{"\n"}{"\n"}
+              {t("msg1")}{"\n"}
+              {t("msg2")},{"\n"}{t("msg3")}{"\n"}{"\n"}
+              {t("msg4")}
             </Text>
           </View>
           <View style={style.buttons}>
             <Button style={style.button} block={true} onPress={onPressContinue}>
-              <Text>I have written it down</Text>
+              <Text>{t("button")}</Text>
             </Button>
           </View>
         </View>

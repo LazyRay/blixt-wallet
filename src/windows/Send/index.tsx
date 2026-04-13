@@ -1,44 +1,43 @@
 import React from "react";
-import { createStackNavigator, StackNavigationOptions, CardStyleInterpolators } from "@react-navigation/stack";
+import {
+  createStackNavigator,
+  StackNavigationOptions,
+  CardStyleInterpolators,
+} from "@react-navigation/stack";
 import SendCamera from "./SendCamera";
 import SendConfirmation from "./SendConfirmation";
 import SendDone from "./SendDone";
 import useStackNavigationOptions from "../../hooks/useStackNavigationOptions";
-import { RouteProp } from "@react-navigation/native";
-
-const Stack = createStackNavigator();
 
 export type SendStackParamList = {
-  SendCamera?: {
-    viaSwipe: boolean;
-  };
-  SendConfirmation?: {
+  SendCamera: undefined;
+  SendConfirmation: {
     callback?: (r: Uint8Array | null) => void;
   };
   SendDone: {
     preimage: Uint8Array;
     callback?: (r: Uint8Array | null) => void;
   };
-}
+};
 
-export default function SendIndex({ route }: { route: RouteProp<{ "Send": {viaSwipe: boolean | undefined } | undefined}, "Send">}) {
+const Stack = createStackNavigator<SendStackParamList>();
+
+export default function SendIndex() {
   const screenOptions: StackNavigationOptions = {
     ...useStackNavigationOptions(),
   };
 
-  const viaSwipe = route.params?.viaSwipe;
-
   return (
-    <Stack.Navigator headerMode="screen" initialRouteName="SendCamera" screenOptions={screenOptions}>
-      <Stack.Screen initialParams={viaSwipe !== undefined ? { viaSwipe } : undefined} name="SendCamera" component={SendCamera} options={{
-        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-      }} />
-      <Stack.Screen name="SendConfirmation" component={SendConfirmation} options={{
-        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-      }} />
-      <Stack.Screen name="SendDone" component={SendDone} options={{
-        cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-      }} />
+    <Stack.Navigator initialRouteName="SendCamera" screenOptions={screenOptions}>
+      <Stack.Screen
+        name="SendCamera"
+        component={SendCamera}
+        options={{
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen name="SendConfirmation" component={SendConfirmation} />
+      <Stack.Screen name="SendDone" component={SendDone} />
     </Stack.Navigator>
-  )
+  );
 }

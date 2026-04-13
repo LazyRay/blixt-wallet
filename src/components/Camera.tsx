@@ -1,52 +1,61 @@
-import React, { ReactNode, useState, useEffect } from "react";
-import { StyleProp, ViewStyle, InteractionManager } from "react-native";
-import { RNCamera, CameraType } from "react-native-camera";
+import React, { ReactNode, useEffect } from "react";
+import { StyleProp, ViewStyle, InteractionManager, StyleSheet } from "react-native";
+import {
+  Camera,
+  useCodeScanner,
+  useCameraDevice,
+  useCameraPermission,
+} from "react-native-vision-camera";
 import Container from "./Container";
 
 export interface ICamera {
   active?: boolean;
   children?: ReactNode | JSX.Element;
-  cameraType?: keyof CameraType;
+  cameraType?: keyof CameraType; // TODO(hsjoberg)
   onRead?: (text: string) => void;
-  onNotAuthorized?: () => void;
+  onNotAuthorized?: () => void; // TODO(hsjoberg):
   style?: StyleProp<ViewStyle>;
 }
-export default function Camera({ cameraType, children, onNotAuthorized, onRead, style, active }: ICamera) {
-  const [start, setStart] = useState(false);
+export default function CameraComponent({ children, onNotAuthorized, onRead, active }: ICamera) {
+  const device = useCameraDevice("back");
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const codeScanner = useCodeScanner({
+    codeTypes: ["qr"],
+    onCodeScanned: (codes) => {
+      if (codes.length > 0) {
+        onRead?.(codes[0].value ?? "");
+      }
+    },
+  });
   active = active ?? true;
 
   useEffect(() => {
-    InteractionManager.runAfterInteractions(() => {
-      setStart(true);
-    })
-  }, []);
+    (async () => {
+      if (hasPermission === false) {
+        setTimeout(async () => {
+          console.log("Does not have camera permission");
+          if (await !requestPermission()) {
+            // TODO fix await
+            onNotAuthorized?.();
+          }
+        }, 600);
+      }
+    })();
+  }, [requestPermission, hasPermission]);
 
-  if (!start || !active) {
-    return (
-      <Container style={{ backgroundColor: "black" }}>
-        {children ?? <></>}
-      </Container>
-    );
+  if (!active || !hasPermission || !device) {
+    return <Container style={{ backgroundColor: "black" }}>{children ?? <></>}</Container>;
   }
 
   return (
-    <RNCamera
-      style={[{ width: "100%", height: "100%" }, style]}
-      androidCameraPermissionOptions={{
-        title: "Permission to use camera",
-        message: "Permission to use the camera is needed to be able to scan QR codes",
-        buttonPositive: "Okay",
-      }}
-      onBarCodeRead={(e) => onRead && onRead(e.data)}
-      captureAudio={false}
-      type={cameraType}
-    >
-      {({ status }) => {
-        if (status === "NOT_AUTHORIZED" && onNotAuthorized) {
-          onNotAuthorized();
-        }
-        return (children ?? <></>);
-      }}
-    </RNCamera>
+    <>
+      <Camera
+        style={StyleSheet.absoluteFill}
+        codeScanner={codeScanner}
+        device={device}
+        isActive={active}
+      />
+      {children}
+    </>
   );
 }

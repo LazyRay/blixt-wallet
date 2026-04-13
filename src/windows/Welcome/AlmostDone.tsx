@@ -1,14 +1,29 @@
 import React from "react";
 import { StatusBar, StyleSheet, ToastAndroid } from "react-native";
-import { Body, Icon, Text, View, Button, H1, List, Left, ListItem, Right, CheckBox } from "native-base";
+import {
+  Body,
+  Icon,
+  Text,
+  View,
+  Button,
+  H1,
+  List,
+  Left,
+  ListItem,
+  Right,
+  CheckBox,
+} from "native-base";
 import DialogAndroid from "react-native-dialogs";
-import { createStackNavigator, StackNavigationOptions, StackNavigationProp } from "@react-navigation/stack";
+import {
+  createStackNavigator,
+  StackNavigationOptions,
+  StackNavigationProp,
+} from "@react-navigation/stack";
 
 import { useStoreState, useStoreActions } from "../../state/store";
 import style from "./style";
 import { LoginMethods } from "../../state/Security";
 import Container from "../../components/Container";
-
 import SetPincode from "../Settings/SetPincode";
 import RemovePincodeAuth from "../Settings/RemovePincodeAuth";
 import ChangeFingerprintSettingsAuth from "../Settings/ChangeFingerprintSettingsAuth";
@@ -17,11 +32,16 @@ import { PLATFORM } from "../../utils/constants";
 import { IFiatRates } from "../../state/Fiat";
 import useStackNavigationOptions from "../../hooks/useStackNavigationOptions";
 import { Alert } from "../../utils/alert";
+import GoBackIcon from "../../components/GoBackIcon";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 interface IProps {
   navigation: StackNavigationProp<AlmostDoneStackParamList, "AlmostDone">;
 }
 const AlmostDone = ({ navigation }: IProps) => {
+  const { t, i18n } = useTranslation(namespaces.welcome.almostDone);
   const changeOnboardingState = useStoreActions((store) => store.changeOnboardingState);
 
   // Name
@@ -29,20 +49,21 @@ const AlmostDone = ({ navigation }: IProps) => {
   const changeName = useStoreActions((store) => store.settings.changeName);
   const onNamePress = async () => {
     Alert.prompt(
-      "Name",
-      "Choose a name that will be used in transactions\n\n" +
-      "Your name will be seen in invoices to those who pay you as well as " +
-      "people you pay to.",
-      [{
-        text: "Cancel",
-        style: "cancel",
-        onPress: () => {},
-      }, {
-        text: "Set name",
-        onPress: async (text) => {
-          await changeName(text ?? null);
+      t("general.name.title", { ns: namespaces.settings.settings }),
+      t("general.name.dialog.msg", { ns: namespaces.settings.settings }),
+      [
+        {
+          text: t("buttons.cancel", { ns: namespaces.common }),
+          style: "cancel",
+          onPress: () => {},
         },
-      }],
+        {
+          text: t("general.name.dialog.accept", { ns: namespaces.settings.settings }),
+          onPress: async (text) => {
+            await changeName(text ?? null);
+          },
+        },
+      ],
       "plain-text",
       name ?? "",
     );
@@ -59,7 +80,7 @@ const AlmostDone = ({ navigation }: IProps) => {
   const biometricsSensor = useStoreState((store) => store.security.sensor);
   const onToggleFingerprintPress = async () => {
     navigation.navigate("ChangeFingerprintSettingsAuth");
-  }
+  };
 
   // Fiat unit
   const fiatRates = useStoreState((store) => store.fiat.fiatRates);
@@ -69,7 +90,7 @@ const AlmostDone = ({ navigation }: IProps) => {
     if (PLATFORM === "android") {
       const { selectedItem } = await DialogAndroid.showPicker(null, null, {
         positiveText: null,
-        negativeText: "Cancel",
+        negativeText: t("buttons.cancel", { ns: namespaces.common }),
         type: DialogAndroid.listRadio,
         selectedId: currentFiatUnit,
         items: [
@@ -95,14 +116,14 @@ const AlmostDone = ({ navigation }: IProps) => {
           { label: "THB", id: "THB" },
           { label: "KRW", id: "KRW" },
           { label: "TWD", id: "TWD" },
-        ]
+        ],
       });
       if (selectedItem) {
         changeFiatUnit(selectedItem.id);
       }
     } else {
       navigation.navigate("ChangeFiatUnit", {
-        title: "Change fiat unit",
+        title: t("display.fiatUnit.title", { ns: namespaces.settings.settings }),
         data: Object.entries(fiatRates).map(([currency]) => ({
           title: currency,
           value: currency as keyof IFiatRates,
@@ -111,14 +132,15 @@ const AlmostDone = ({ navigation }: IProps) => {
         searchEnabled: true,
       });
     }
-  }
+  };
 
   // Autopilot
   const autopilotEnabled = useStoreState((store) => store.settings.autopilotEnabled);
   const changeAutopilotEnabled = useStoreActions((store) => store.settings.changeAutopilotEnabled);
-  const onToggleAutopilotPress = () => { // TODO why not await?
+  const onToggleAutopilotPress = () => {
+    // TODO why not await?
     changeAutopilotEnabled(!autopilotEnabled);
-  }
+  };
 
   const onPressContinue = async () => {
     await changeOnboardingState("DONE");
@@ -134,83 +156,138 @@ const AlmostDone = ({ navigation }: IProps) => {
         animated={true}
         translucent={true}
       />
-      <View style={{ flex: 1, padding: 0 }}>
-        <View style={[style.upperContent, { paddingTop: 40 }]}>
+      {/* {PLATFORM !== "android" && <GoBackIcon style={style.goBack} />} */}
+      <View style={style.content}>
+        <View style={[style.upperContent]}>
           <List style={extraStyle.list}>
             <ListItem style={extraStyle.listItem} icon={true} onPress={onNamePress}>
-              <Left><Icon style={extraStyle.icon} type="AntDesign" name="edit" /></Left>
+              <Left>
+                <Icon style={extraStyle.icon} type="AntDesign" name="edit" />
+              </Left>
               <Body>
-                <Text>Name</Text>
-                <Text note={true} numberOfLines={1}>
-                  {name || "Will be used in transactions"}
+                <Text>{t("general.name.title", { ns: namespaces.settings.settings })}</Text>
+                <Text note={true}>
+                  {name || t("general.name.subtitle", { ns: namespaces.settings.settings })}
                 </Text>
               </Body>
             </ListItem>
 
-            <ListItem style={extraStyle.listItem} button={true} icon={true} onPress={loginMethods!.has(LoginMethods.pincode) ? onRemovePincodePress : onSetPincodePress}>
-              <Left><Icon style={extraStyle.icon} type="AntDesign" name="lock" /></Left>
-              <Body><Text>Login with pincode</Text></Body>
-              <Right><CheckBox checked={loginMethods!.has(LoginMethods.pincode)} onPress={loginMethods!.has(LoginMethods.pincode) ? onRemovePincodePress : onSetPincodePress} /></Right>
+            <ListItem
+              style={extraStyle.listItem}
+              button={true}
+              icon={true}
+              onPress={
+                loginMethods!.has(LoginMethods.pincode) ? onRemovePincodePress : onSetPincodePress
+              }
+            >
+              <Left>
+                <Icon style={extraStyle.icon} type="AntDesign" name="lock" />
+              </Left>
+              <Body>
+                <Text>{t("security.pincode.title", { ns: namespaces.settings.settings })}</Text>
+              </Body>
+              <Right>
+                <CheckBox
+                  checked={loginMethods!.has(LoginMethods.pincode)}
+                  onPress={
+                    loginMethods!.has(LoginMethods.pincode)
+                      ? onRemovePincodePress
+                      : onSetPincodePress
+                  }
+                />
+              </Right>
             </ListItem>
 
-            {fingerprintAvailable &&
-              <ListItem style={extraStyle.listItem} button={true} icon={true} onPress={onToggleFingerprintPress}>
+            {fingerprintAvailable && (
+              <ListItem
+                style={extraStyle.listItem}
+                button={true}
+                icon={true}
+                onPress={onToggleFingerprintPress}
+              >
                 <Left>
-                  {biometricsSensor !== "Face ID" &&
+                  {biometricsSensor !== "Face ID" && (
                     <Icon style={extraStyle.icon} type="Entypo" name="fingerprint" />
-                  }
-                  {biometricsSensor === "Face ID" &&
-                    <Icon style={extraStyle.icon} type="MaterialCommunityIcons" name="face-recognition" />
-                  }
+                  )}
+                  {biometricsSensor === "Face ID" && (
+                    <Icon
+                      style={extraStyle.icon}
+                      type="MaterialCommunityIcons"
+                      name="face-recognition"
+                    />
+                  )}
                 </Left>
                 <Body>
                   <Text>
-                    Login with{" "}
+                    {t("security.biometrics.title", { ns: namespaces.settings.settings })}{" "}
                     {biometricsSensor === "Biometrics" && "fingerprint"}
                     {biometricsSensor === "Face ID" && "Face ID"}
                     {biometricsSensor === "Touch ID" && "Touch ID"}
                   </Text>
                 </Body>
-                <Right><CheckBox checked={fingerPrintEnabled} onPress={onToggleFingerprintPress}/></Right>
+                <Right>
+                  <CheckBox checked={fingerPrintEnabled} onPress={onToggleFingerprintPress} />
+                </Right>
               </ListItem>
-            }
+            )}
 
             <ListItem style={extraStyle.listItem} icon={true} onPress={onFiatUnitPress}>
-              <Left><Icon style={extraStyle.icon} type="FontAwesome" name="money" /></Left>
+              <Left>
+                <Icon style={extraStyle.icon} type="FontAwesome" name="money" />
+              </Left>
               <Body>
-                <Text>Fiat currency</Text>
-                <Text note={true} numberOfLines={1} onPress={onFiatUnitPress}>{currentFiatUnit}</Text>
+                <Text>{t("display.fiatUnit.title", { ns: namespaces.settings.settings })}</Text>
+                <Text note={true} numberOfLines={1} onPress={onFiatUnitPress}>
+                  {currentFiatUnit}
+                </Text>
               </Body>
             </ListItem>
 
-            <ListItem style={extraStyle.listItem} button={true} icon={true} onLongPress={() => ToastAndroid.show("Open channels when on-chain funds are available", ToastAndroid.SHORT)} onPress={onToggleAutopilotPress}>
-              <Left><Icon style={extraStyle.icon} type="Entypo" name="circular-graph" /></Left>
+            <ListItem
+              style={extraStyle.listItem}
+              button={true}
+              icon={true}
+              onLongPress={() =>
+                ToastAndroid.show(
+                  "Open channels when on-chain funds are available",
+                  ToastAndroid.SHORT,
+                )
+              }
+              onPress={onToggleAutopilotPress}
+            >
+              <Left>
+                <Icon style={extraStyle.icon} type="Entypo" name="circular-graph" />
+              </Left>
               <Body>
-                <Text>Auto-open channels</Text>
-                <Text note={true} numberOfLines={1}>Open channels when on-chain funds are available</Text>
+                <Text>{t("autopilot.title")}</Text>
+                <Text note={true} numberOfLines={1}>
+                  {t("autopilot.msg")}
+                </Text>
               </Body>
-              <Right><CheckBox checked={autopilotEnabled} onPress={onToggleAutopilotPress} /></Right>
+              <Right>
+                <CheckBox checked={autopilotEnabled} onPress={onToggleAutopilotPress} />
+              </Right>
             </ListItem>
           </List>
         </View>
         <View style={style.lowerContent}>
           <View style={style.text}>
-            <H1 style={style.textHeader}>Almost done!</H1>
+            <H1 style={style.textHeader}>{t("done.title")}</H1>
             <Text>
-              Here are some wallet settings you can set up to your liking.{"\n\n"}
-              When you are ready, press continue.
+              {t("done.msg1")}.{"\n\n"}
+              {t("done.msg2")}.
             </Text>
           </View>
           <View style={style.buttons}>
             <Button style={style.button} block={true} onPress={onPressContinue}>
-              <Text>Continue</Text>
+              <Text>{t("buttons.continue", { ns: namespaces.common })}</Text>
             </Button>
           </View>
         </View>
       </View>
     </Container>
   );
-}
+};
 
 const extraStyle = StyleSheet.create({
   list: {
@@ -244,11 +321,11 @@ export type AlmostDoneStackParamList = {
   SetPincode: undefined;
   ChangeFingerprintSettingsAuth: undefined;
   ChangeFiatUnit: ISelectListNavigationProps<keyof IFiatRates>;
-}
+};
 export default () => {
   const screenOptions: StackNavigationOptions = {
     ...useStackNavigationOptions(),
-    animationEnabled: false,
+    animation: "none",
   };
 
   return (
@@ -256,9 +333,11 @@ export default () => {
       <Stack.Screen name="AlmostDone" component={AlmostDone} />
       <Stack.Screen name="RemovePincodeAuth" component={RemovePincodeAuth} />
       <Stack.Screen name="SetPincode" component={SetPincode} />
-      <Stack.Screen name="ChangeFingerprintSettingsAuth" component={ChangeFingerprintSettingsAuth} />
+      <Stack.Screen
+        name="ChangeFingerprintSettingsAuth"
+        component={ChangeFingerprintSettingsAuth}
+      />
       <Stack.Screen name="ChangeFiatUnit" component={SelectList} />
     </Stack.Navigator>
   );
 };
-

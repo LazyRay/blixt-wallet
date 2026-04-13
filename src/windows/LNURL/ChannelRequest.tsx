@@ -6,13 +6,16 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import Container from "../../components/Container";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { useStoreState, useStoreActions } from "../../state/store";
-import { RootStackParamList } from "../../Main";
 import { toast, timeout } from "../../utils";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 interface IChannelRequestProps {
   navigation: StackNavigationProp<{}>;
 }
 export default function LNURLChannelRequest({ navigation }: IChannelRequestProps) {
+  const t = useTranslation(namespaces.LNURL.channelRequest).t;
   const [done, setDone] = useState(false);
   const type = useStoreState((store) => store.lnUrl.type);
   const doChannelRequest = useStoreActions((store) => store.lnUrl.doChannelRequest);
@@ -35,23 +38,18 @@ export default function LNURLChannelRequest({ navigation }: IChannelRequestProps
           setDone(true);
           clear();
           Vibration.vibrate(32);
-          toast(
-            "Opening inbound channel",
-            10000,
-            "success",
-            "Okay"
-          );
+          toast(t("alert"), 10000, "success", "Okay");
           navigation.pop();
-        } catch (e) {
+        } catch (e: any) {
           console.log(e);
           setDone(true);
           clear();
           Vibration.vibrate(50);
           toast(
-            "Error: " + e.message,
+            `${t("msg.error", { ns: namespaces.common })}: ` + e.message,
             12000,
             "warning",
-            "Okay"
+            "Okay",
           );
           navigation.pop();
         }

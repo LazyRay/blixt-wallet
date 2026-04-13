@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect } from "react";
 import { StyleSheet, View, Share } from "react-native";
-import Clipboard from "@react-native-community/clipboard";
-import { Text, Container, H1, H2, Button, Icon, Spinner } from "native-base";
+import Clipboard from "@react-native-clipboard/clipboard";
+import { Text, Container, H1, H2, Icon, Spinner } from "native-base";
+import { Button } from "../../components/Button";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 import { OnChainStackParamList } from "./index";
@@ -13,12 +14,16 @@ import CopyAddress from "../../components/CopyAddress";
 import { blixtTheme } from "../../native-base-theme/variables/commonColor";
 import { toast } from "../../utils";
 import { NavigationButton } from "../../components/NavigationButton";
-import { lnrpc } from "../../../proto/proto";
+import { AddressType } from "react-native-turbo-lnd/protos/lightning_pb";
+
+import { useTranslation } from "react-i18next";
+import { namespaces } from "../../i18n/i18n.constants";
 
 interface IOnChainInfoProps {
   navigation: StackNavigationProp<OnChainStackParamList, "OnChainInfo">;
 }
 export const OnChainInfo = ({ navigation }: IOnChainInfoProps) => {
+  const t = useTranslation(namespaces.onchain.onChainInfo).t;
   const rpcReady = useStoreState((store) => store.lightning.rpcReady);
   const getBalance = useStoreActions((store) => store.onChain.getBalance);
   const getAddress = useStoreActions((store) => store.onChain.getAddress);
@@ -29,7 +34,7 @@ export const OnChainInfo = ({ navigation }: IOnChainInfoProps) => {
   const fiatUnit = useStoreState((store) => store.settings.fiatUnit);
   const currentRate = useStoreState((store) => store.fiat.currentRate);
   const preferFiat = useStoreState((store) => store.settings.preferFiat);
-  const changePreferFiat  = useStoreActions((store) => store.settings.changePreferFiat);
+  const changePreferFiat = useStoreActions((store) => store.settings.changePreferFiat);
 
   useEffect(() => {
     if (rpcReady) {
@@ -42,25 +47,26 @@ export const OnChainInfo = ({ navigation }: IOnChainInfoProps) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: "Bitcoin",
+      headerBackTitle: t("buttons.back", { ns: namespaces.common }),
       headerShown: true,
       headerRight: () => {
         return (
           <NavigationButton onPress={() => navigation.navigate("OnChainTransactionLog")}>
             <Icon type="AntDesign" name="bars" style={{ fontSize: 22 }} />
           </NavigationButton>
-        )
-      }
+        );
+      },
     });
   }, [navigation]);
 
   const onGeneratePress = async () => await getAddress({ forceNew: true });
-  const onGenerateP2SHPress = async () => await getAddress({ forceNew: true, p2sh: true });
+  const onGenerateP2WPKHPress = async () => await getAddress({ forceNew: true, p2wkh: true });
 
   const onWithdrawPress = () => navigation.navigate("Withdraw");
 
   const onBtcAddressTextPress = () => {
     Clipboard.setString(address!);
-    toast("Copied to clipboard.", undefined, "warning");
+    toast(t("address.alert"), undefined, "warning");
   };
 
   const onBtcAddressQrPress = async () => {
@@ -74,52 +80,50 @@ export const OnChainInfo = ({ navigation }: IOnChainInfoProps) => {
   };
 
   const onChainFunds = preferFiat
-    ? (valueFiat(balance, currentRate).toFixed(2) + " " + fiatUnit)
-    : formatBitcoin(balance, bitcoinUnit)
-  ;
-
+    ? valueFiat(balance, currentRate).toFixed(2) + " " + fiatUnit
+    : formatBitcoin(balance, bitcoinUnit);
   return (
     <Container>
       <View style={style.container}>
         <View style={style.fundsInfo}>
-          {smallScreen ?
+          {smallScreen ? (
             <>
-              <H2 style={style.fundsInfoText}>
-                On-chain funds:
-              </H2>
+              <H2 style={style.fundsInfoText}>{t("funds.title")}:</H2>
               <H2 style={style.fundsInfoText} onPress={onPressBalance} testID="ONCHAIN_FUNDS">
                 {onChainFunds}
               </H2>
             </>
-            :
+          ) : (
             <>
-              <H1 style={style.fundsInfoText}>
-                On-chain funds:
-              </H1>
+              <H1 style={style.fundsInfoText}>{t("funds.title")}:</H1>
               <H1 style={style.fundsInfoText} onPress={onPressBalance} testID="ONCHAIN_FUNDS">
                 {onChainFunds}
               </H1>
             </>
-          }
+          )}
         </View>
         <View style={style.qr}>
-          {address &&
+          {address && (
             <>
-              <Text style={style.sendBitcoinsLabel}>Send Bitcoin on-chain to this address:</Text>
-              <QrCode data={
-                  (addressType === lnrpc.AddressType.WITNESS_PUBKEY_HASH || addressType === lnrpc.AddressType.UNUSED_WITNESS_PUBKEY_HASH)
-                  ? address.toUpperCase()
-                  : address
+              <Text style={style.sendBitcoinsLabel}>{t("address.title")}:</Text>
+              <QrCode
+                data={
+                  addressType === AddressType.WITNESS_PUBKEY_HASH ||
+                  addressType === AddressType.UNUSED_WITNESS_PUBKEY_HASH
+                    ? address.toUpperCase()
+                    : address
                 }
                 size={smallScreen ? 200 : undefined}
                 onPress={onBtcAddressQrPress}
               />
-              <CopyAddress testID="COPY_BITCOIN_ADDRESS" text={address} onPress={onBtcAddressTextPress} />
+              <CopyAddress
+                testID="COPY_BITCOIN_ADDRESS"
+                text={address}
+                onPress={onBtcAddressTextPress}
+              />
             </>
-          }
-          {!address &&
-            <Spinner color={blixtTheme.light} />
-          }
+          )}
+          {!address && <Spinner color={blixtTheme.light} />}
         </View>
         <View style={style.buttons}>
           <Button
@@ -129,12 +133,19 @@ export const OnChainInfo = ({ navigation }: IOnChainInfoProps) => {
             disabled={!rpcReady}
             style={style.button}
             onPress={onGeneratePress}
-            onLongPress={() => onGenerateP2SHPress()}
+            onLongPress={() => onGenerateP2WPKHPress()}
           >
-            <Text>Generate new address</Text>
+            <Text>{t("newAddress.title")}</Text>
           </Button>
-          <Button testID="WITHDRAW" block={true} primary={true} disabled={!rpcReady} style={[style.button, { marginBottom: 0 }]} onPress={onWithdrawPress}>
-            <Text>Withdraw coins</Text>
+          <Button
+            testID="WITHDRAW"
+            block={true}
+            primary={true}
+            disabled={!rpcReady}
+            style={[style.button, { marginBottom: 0 }]}
+            onPress={onWithdrawPress}
+          >
+            <Text>{t("withdraw.title")}</Text>
           </Button>
         </View>
       </View>

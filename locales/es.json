@@ -1,0 +1,1283 @@
+{
+  "common": {
+    "generic": {
+      "lightningAddress": "Dirección Lightning",
+      "lightningBox": "Lightning Box",
+      "nodeAlias": "Alias del nodo",
+      "description": "Descripción",
+      "amount": "Cantidad",
+      "fee": "Tarifa",
+      "search": "Búsqueda",
+      "viewInBlockExplorer": "Ver en el explorador de bloques",
+      "blocks": "{{numBlocks}} bloques",
+      "reason": "Razón: {{reason}}"
+    },
+    "buttons": {
+      "ok": "Ok",
+      "cancel": "Cancelar",
+      "continue": "Continuar",
+      "skip": "Saltar",
+      "proceed": "Continuar",
+      "back": "Atrás",
+      "no": "No",
+      "yes": "Sí",
+      "save": "Guardar",
+      "copy": "Copiar"
+    },
+    "msg": {
+      "status": "Estado",
+      "error": "Error",
+      "warning": "Advertencia",
+      "result": "Resultado",
+      "pending": "pendiente",
+      "done": "Hecho",
+      "dismiss": "Descartar",
+      "lastSync": "Última sincronización",
+      "lastSyncAttempt": "Último intento de sincronización",
+      "clipboardCopy": "Copiado al portapapeles",
+      "written": "Escrito",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado"
+    }
+  },
+  "welcome.start": {
+    "title": "Bienvenido",
+    "createWallet": {
+      "title": "Crear Cartera"
+    },
+    "createWalletWithPassphrase": {
+      "title": "Establecer frase de contraseña (25ª palabra para cifrar la semilla)",
+      "invalidMessage": "Introduzca una frase de contraseña válida",
+      "noLeadingTrailingSpaces": "No se permiten espacios iniciales o finales"
+    },
+    "language": {
+      "title": "Seleccione el idioma"
+    },
+    "restoreWallet": {
+      "title": "Restaurar cartera"
+    },
+    "menu": {
+      "enableTor": "Habilitar Tor",
+      "disableTor": "Deshabilitar Tor",
+      "setBitcoinNode": "Establecer nodo Bitcoin",
+      "createWalletWithPassphrase": "Crear billetera con frase de contraseña"
+    }
+  },
+  "footerNav": {
+    "receive": "Recibir",
+    "send": "Enviar"
+  },
+  "drawer": {
+    "menu": {
+      "scan": "Escanear",
+      "receive": "Recibir",
+      "pasteFromClipboard": "Pegar desde el portapapeles",
+      "sendToLightningAddress": "Enviar a dirección Lightning",
+      "contactsAndServices": "Contactos y Servicios",
+      "lightningBrowser": "Explorador Lightning",
+      "onChainWallet": "Cartera On-chain",
+      "lightningChannels": "Canales Lightning",
+      "keysendExperiment": "Keysend (experimental)",
+      "showMore": "Ver más",
+      "powerUserTools": "Power user tools"
+    },
+    "madeInSweden": "Hecho con ⚡ en Suecia"
+  },
+  "overview": {
+    "recoverInfo": {
+      "msg1": "Recuperación del monedero en progreso",
+      "msg2": "Recuperación de la cartera completada",
+      "more": "Más información"
+    },
+    "sendOnChain": {
+      "title": "¡Bienvenido a Blixt Wallet!",
+      "msg1": "Para empezar, envíe fondos on-chain a la dirección de bitcoin que se muestra a la derecha.",
+      "msg2": "Se abrirá automáticamente un canal para usted.",
+      "msg3": "Enviar al menos",
+      "alert": "Dirección de Bitcoin copiada al portapapeles"
+    },
+    "doBackup": {
+      "msg1": "¡Gracias por usar Blixt Wallet!",
+      "msg2": "Recomendamos hacer una copia de seguridad de la cartera para que pueda restaurar sus fondos en caso de pérdida del teléfono.",
+      "backup": "Copia de la cartera"
+    },
+    "newChannelBeingOpened": {
+      "info": "Se está abriendo un nuevo canal...",
+      "view": "Ver"
+    },
+    "noTransactionsYet": "Aún no hay transacciones"
+  },
+  "help": {
+    "title": "Ayuda",
+    "msg1": "Si tienes problemas o sugerencias, puedes contactar con los desarrolladores de Blixt Wallet a través de Github o desde el correo electrónico.",
+    "msg2": "También estás invitado a unirte a nuestro grupo público de Telegram.",
+    "msg3": "Como Blixt Wallet es una cartera muy joven, agradecemos que nos envíes sugerencias o nos informes a cerca errores que puedas encontrar.",
+    "telegramGroup": "Grupo de Telegram"
+  },
+  "syncInfo": {
+    "syncedToChain": {
+      "title": "Sincronización en progreso",
+      "title1": "Sincronización completada.",
+      "msg1": "Blixt Wallet está sincronizándose con la Blockchain.",
+      "msg2": "Una vez tu cartera se haya sincronizado con la Blockchain, las transacciones on-chain y los fondos serán reconocidos y podrán ser vistos en la sección \"Cartera On-chain\".",
+      "msg3": "Blixt Wallet está sincronizada con la Blockchain.",
+      "blockHeight": {
+        "title": "Altura del bloque actual",
+        "msg1": "Sincronizando con la cadena"
+      }
+    },
+    "recoveryMode": {
+      "title": "Progreso de recuperación",
+      "msg1": "Recuperación completada",
+      "msg2": "Comprobar los canales Lightning y las secciones On-chain"
+    },
+    "lndLog": {
+      "show": "Mostrar el registro de lnd",
+      "copy": "Copiar texto del registro"
+    }
+  },
+  "transactionDetails": {
+    "title": "Transacción",
+    "date": "Fecha",
+    "duration": "Tiempo que tarda en pagar la factura",
+    "note": "Nota",
+    "website": "Página web",
+    "type": "Tipo",
+    "lnurl": {
+      "messageFromWebsite": "Mensaje desde página web",
+      "urlReceivedFromWebsite": "URL recibido desde página web",
+      "secretMessage": "Mensaje secreto"
+    },
+    "payer": "Pagador",
+    "recipient": "Destinatario",
+    "amountInFiatTimeOfPayment": "Cantidad en Fiat (en el momento del pago)",
+    "numberOfHops": "Número de saltos",
+    "remotePubkey": "Clave pública remota",
+    "paymentHash": "Hash del pago",
+    "preimage": "Preimagen",
+    "status": "Estado",
+    "goBack": "Atrás",
+    "button": {
+      "setNote": "Poner nota",
+      "cancelInvoice": "Cancelar factura",
+      "showMap": "Mostrar mapa"
+    },
+    "setNoteDialog": {
+      "title": "Nota",
+      "text": "Añadir una nota a esta transacción"
+    }
+  },
+  "web.info": {
+    "title": "Demo interactiva",
+    "pressToTry": "Pulse para probar Blixt Wallet!"
+  },
+  "receive.receiveSetup": {
+    "layout": {
+      "title": "Recibir"
+    },
+    "createInvoice": {
+      "title": "Crear factura",
+      "alert": "Para poder recibir, necesitas abrir un canal Lightning.",
+      "lsp": {
+        "msg": "Cuando recibas el pago de la factura, Dunder LSP creará un canal lightning con el que podrás recibir pagos y, posteriormente, enviarlos.",
+        "msg1": "¿Qué es esto?"
+      }
+    },
+    "createBlixtLspInvoice": {
+      "title": "Abriendo canal",
+      "msg": "Para aceptar el pago de esta factura, se debe abrir un canal en la Red Lightning",
+      "msg1": "Esto requiere una tarifa única de aproximadamente",
+      "alert": "Fallo al conectar con Dunder, por favor inténtalo de nuevo más tarde.",
+      "proceed": "Proceder"
+    },
+    "form": {
+      "amountFiat": {
+        "title": "Cantidad",
+        "change": "Cambiar unidad fiat",
+        "dunderPlaceholder": "Al menos"
+      },
+      "amountBitcoin": {
+        "title": "Cantidad",
+        "change": "Cambiar unidad bitcoin",
+        "dunderPlaceholder": "Al menos"
+      },
+      "payer": {
+        "title": "Pagador",
+        "placeholder": "Para contabilidad"
+      },
+      "description": {
+        "title": "Mensaje",
+        "placeholder": "Mensaje para el pagador"
+      },
+      "preimage": {
+        "placeholder": "32-byte hex string"
+      }
+    }
+  },
+  "receive.dunderLspInfo": {
+    "title": "Sobre Dunder LSP",
+    "msg": "Dunder es un Proveedor de Servicios Lightning (LSP) que automáticamente abre canales para ti cuando no tienes suficiente liquidez entrante.",
+    "msg1": "Esto podría ser, por ejemplo, al usar Blixt Wallet por primera vez.",
+    "msg2": "Como esto requiere una transacción on-chain, se deducirá de tu pago una pequeña comisión. Gracias a esto, tus pagos serán capaces de usar estos canales recién abiertos en la Red Lightning.",
+    "msg3": "Dunder es",
+    "msg4": "un software de código abierto",
+    "msg5": "y podrías cambiar el proveedor por defecto en Ajustes."
+  },
+  "receive.receiveQr": {
+    "title": "Recibir",
+    "qr": {
+      "title": "Escanear este código QR",
+      "msg": "Expira en {{time}}"
+    }
+  },
+  "send.sendConfirmation": {
+    "layout": {
+      "title": "Pagar factura"
+    },
+    "form": {
+      "invoice": {
+        "title": "Factura"
+      },
+      "amount": {
+        "title": "Cantidad"
+      },
+      "recipient": {
+        "title": "Receptor"
+      },
+      "nodeAlias": {
+        "title": "Alias del nodo"
+      },
+      "description": {
+        "title": "Mensaje"
+      },
+      "feeEstimate": {
+        "title": "Estimación de tarifa"
+      },
+      "outgoingChannel": {
+        "title": "Canal saliente"
+      }
+    }
+  },
+  "send.sendDone": {
+    "done": {
+      "title": "PAGO ENVIADO"
+    }
+  },
+  "lightningInfo.lightningInfo": {
+    "layout": {
+      "title": "Canales Lightning"
+    },
+    "balance": {
+      "title": "Balance"
+    },
+    "channel": {
+      "alias": "Alias",
+      "bumpFee": "Aumenta tarfia",
+      "node": "Nodo",
+      "channelId": "ID del Canal",
+      "channelPoint": "Punto de canal",
+      "status": "Estatus",
+      "statusActive": "Activo",
+      "statusInactive": "Inactivo",
+      "statusPending": "Pendiente",
+      "statusClosing": "Cerrando",
+      "statusForceClosing": "Forzar el cierre",
+      "statusWaitingForClose": "Esperando al cierre",
+      "capacity": "Capacidad",
+      "howMuchCanBeSent": "Puede enviar",
+      "howMuchCanBeReceived": "Puede recibir",
+      "localReserve": "Reserva local",
+      "commitmentFee": "Tasa de compromiso",
+      "channelType": "Tipo de canal",
+      "pendingFunds": "Fondos pendientes",
+      "balanceInLimbo": "Equilibrio en el limbo",
+      "pendingHtlcs": "Pendientes de HTLCs",
+      "maturityHeight": "Bloque objetivo",
+      "localCommitmentTxid": "Compromiso local TXID",
+      "remoteCommitmentTxid": "Compromiso remoto TXID",
+      "enterDeliveryAddress": "Ingrese la dirección de cierre",
+      "invalidAddress": "Introduzca una dirección de Bitcoin válida",
+      "closeChannel": "Cerrar canal",
+      "forceCloseChannel": "Forzar el cierre del canal",
+      "closeChannelToAddress": "Cerrar canal a dirección externa",
+      "forceClosePendingChannel": "Cierre Forzoso del canal pendiente",
+      "forceCloseDelay": "Retraso de cierre forzado",
+      "closeChannelPrompt": {
+        "title": "Cerrar canal"
+      },
+      "bumpFeeAlerts": {
+        "enterFeeRate": "Introduzca la tarifa (sats/vB)",
+        "missingFeeRate": "Tasa de tarifa faltante",
+        "invalidFeeRate": "Tarifa no válida",
+        "bumpFeeSuccess": "Aumento de tarifas exitoso",
+        "bumpFeeFailed": "El aumento de tarifas falló"
+      }
+    }
+  },
+  "lightningInfo.openChannel": {
+    "layout": {
+      "title": "Abrir canal"
+    },
+    "form": {
+      "title": "Abrir canal",
+      "channel": {
+        "title": "Nodo URI",
+        "placeholder": "URI"
+      },
+      "amount": {
+        "title": "Cantidad",
+        "placeholder": "Cantidad"
+      },
+      "fee_rate": {
+        "title": "Coste de la tarifa"
+      }
+    },
+    "torPrompt": {
+      "title": "Habilitar Tor",
+      "text1": "Parece que está intentando abrir un canal a un nodo que se ejecuta bajo un servicio onion Tor.",
+      "text2": "Para conectarse, debe activar Tor para Blixt Wallet."
+    }
+  },
+  "onchain.onChainInfo": {
+    "funds": {
+      "title": "Fondos On-chain"
+    },
+    "address": {
+      "title": "Enviar Bitcoin on-chain a esta dirección",
+      "alert": "Copiado al portapapeles"
+    },
+    "newAddress": {
+      "title": "Generar nueva dirección"
+    },
+    "withdraw": {
+      "title": "retirar fondos"
+    }
+  },
+  "onchain.onChainTransactionDetails": {
+    "title": "Transacción",
+    "txHash": "Id",
+    "timeStamp": "Fecha",
+    "amount": "Cantidad",
+    "totalFees": "Tarifas",
+    "label": "Etiqueta",
+    "destAddresses": "Destino",
+    "numConfirmations": "Confirmaciones",
+    "blockHeight": "Altura del bloque",
+    "blockHash": "Hash del bloque",
+    "rawTxHex": {
+      "title": "Hexadecimal de la tx en bruto",
+      "msg": "Presiona para copiar"
+    }
+  },
+  "onchain.onChainTransactionLog": {
+    "layout": {
+      "title": "Registro de transacciones"
+    }
+  },
+  "onchain.withdraw": {
+    "layout": {
+      "title": "Retirar fondos"
+    },
+    "form": {
+      "address": {
+        "title": "Dirección",
+        "placeholder": "Dirección Bitcoin"
+      },
+      "amount": {
+        "title": "Cantidad",
+        "placeholder": "Cantidad",
+        "withdrawAll": "Retirar todos los fondos",
+        "all": "Todos"
+      },
+      "feeRate": {
+        "title": "Coste de la tarifa",
+        "auto": "auto"
+      },
+      "withdraw": {
+        "title": "Retirar",
+        "alert": "Retirada exitosa"
+      }
+    }
+  },
+  "LNURL.authRequest": {
+    "layout": {
+      "title": "Solicitud de inicio de sesión",
+      "msg": "Quieres iniciar sesión en",
+      "success": "Autenticado a"
+    }
+  },
+  "LNURL.channelRequest": {
+    "alert": "Abriendo canal entrante"
+  },
+  "LNURL.payRequest": {
+    "viewMetadata": {
+      "title": "Ver metadatos",
+      "dialog": {
+        "title": "Metadatos técnicos"
+      }
+    },
+    "lightningAddress": {
+      "alreadyExists": {
+        "msg": "{{lightningAddress}} está en tu lista de contactos"
+      },
+      "add": {
+        "title": "Añadir a tu lista de contactos",
+        "msg": "¿Te gustaría añadir {{lightningAddress}} a tu lista de contactos?"
+      }
+    },
+    "payContact": {
+      "alreadyExists": {
+        "msg": "El código de pago para {{domain}} está en tu lista de contactos"
+      },
+      "add": {
+        "title": "Añadir a tu lista de contactos",
+        "msg": "¿Te gustaría añadir este código de pago a {{domain}} tu lista de contactos?"
+      }
+    },
+    "unableToPay": "Incapaz de realizar el pago",
+    "payerData": {
+      "commentAllowed": "Comentario a {{target}} (max {{letters}} letters)",
+      "sendNameWithComment": "Envía mi nombre junto a este comentario",
+      "name": {
+        "ask": "Envía mi nombre junto a este pago",
+        "mandatory": "Tu nombre tiene que ser enviado junto a este pago"
+      },
+      "identifier": {
+        "ask": "Envíe mi dirección Lightning junto con este pago",
+        "mandatory": "Su dirección Lightning debe enviarse junto con este pago"
+      }
+    },
+    "payloadErrors": {
+      "missingDescription": "Falta una descripción para el pago"
+    },
+    "pay": {
+      "title": "Pagar",
+      "error": {
+        "mustProvideComment": "Si elige incluir su nombre a este pago, debe proporcionar un comentario"
+      }
+    },
+    "cancel": {
+      "title": "Cancelar"
+    },
+    "form": {
+      "asksYouToPay": "le pide que pague",
+      "description": {
+        "title": "Descripción"
+      },
+      "amount": {
+        "title": "Cantidad",
+        "to": "a",
+        "placeholder": "Ingrese la cantidad"
+      },
+      "alert": "No se puede realizar el pago"
+    },
+    "done": {
+      "message": {
+        "title": "Mensaje de"
+      },
+      "url": {
+        "description": "Descripción",
+        "domain": "URL recibida de",
+        "done": {
+          "title": "Hecho"
+        },
+        "copy": {
+          "title": "Copiar al portapapeles",
+          "msg": "Copiado al portapapeles"
+        },
+        "open": {
+          "title": "Abrir el Explorador"
+        }
+      },
+      "aes": {
+        "domain": "Recibido un mensaje secreto cifrado de",
+        "description": "Mensaje de",
+        "secret": "Mensaje secreto"
+      }
+    },
+    "aboutLightningAddress": {
+      "title": "Sobre la dirección Lightning",
+      "msg1": "Dirección Lightning",
+      "msg2": "Es una forma de pagar a una persona o a un servicio en la Lightning Network.",
+      "msg3": "Parecen direcciones de correo electrónico, pero en lugar de enviar texto, envías dinero.",
+      "msg4": "Blixt Wallet puede enviar pagos a una Dirección Lightning, pero no recibirlos ",
+      "msg5": "a través de este método, aunque se está trabajando en tener una Dirección Lightning en Blixt desde la que poder recibir."
+    }
+  },
+  "LNURL.withdrawRequest": {
+    "doRequest": {
+      "sentRequest": "Enviar solicitud de retiro a {{domain}}",
+      "addToContactList": {
+        "title": "Añadir a tu lista de contactos",
+        "msg": "¿Te gustaría añadir este código de retiro a {{domain}} tu lista de contactos?",
+        "note": "Cuenta en {{domain}}"
+      }
+    },
+    "layout": {
+      "title": "Solicitud de retiro",
+      "msg": "Mensaje de",
+      "dialog": {
+        "msg": "Cantidad"
+      },
+      "dialog1": {
+        "minSat": "Mínima cantidad de retiro",
+        "maxSat": "Máxima cantidad de retiro",
+        "placeholder": "Cantidad"
+      }
+    }
+  },
+  "contacts.contactList": {
+    "layout": {
+      "title": "Servicios y contactos",
+      "lightningAddressAlreadyExists": "Ya existe en tu lista de contactos",
+      "nothingHereYet": "Todavía no hay nada aquí...",
+      "whyNotAdd": "¿Por qué no añadir una dirección Lightning mediante",
+      "tappingHere": "toque aquí"
+    },
+    "contact": {
+      "syncBalance": {
+        "title": "Balance remoto",
+        "error": "Operación inválida, el contacto no tiene un código de retiro LNURL"
+      },
+      "list": {
+        "pay": "Pagos a",
+        "account": "Cuenta en"
+      },
+      "send": {
+        "title": "Enviar",
+        "couldNotPay": "No puedes pagar a este código de pago LNURL",
+        "invalidResponse": "La respuesta no fue un pago LNURL (got {{response}})",
+        "invalidOperation": "Operación inválida, contacto no tiene identificación LUD-16 o un código de pago LNURL."
+      },
+      "withdraw": {
+        "title": "Retiro",
+        "couldNotPay": "No se pudo pagar a este código de pago LNURL",
+        "invalidResponse": "La respuesta no fue un código de pago LNURL (got {{response}})",
+        "invalidOperation": "Operación inválida, el contacto no tiene un código de retiro LNURL"
+      },
+      "deleteContact": {
+        "title": "Eliminar contacto",
+        "msg": "¿Estás seguro de que quieres eliminar a este contacto {{contact}}?"
+      },
+      "editContactLabel": {
+        "title": "Etiqueta de contacto"
+      }
+    }
+  },
+  "webLN.browser": {
+    "close": "¿Te gustaría cerrar el navegador?",
+    "home": "Volver a la lista de tiendas",
+    "placeholder": "Escribe la URL aquí"
+  },
+  "keysend.experiment": {
+    "title": "Keysend",
+    "qr": {
+      "alert": "Copiado al portapapeles"
+    },
+    "dialog": {
+      "msg1": "Bienvenido al área Keysend",
+      "msg2": "Keysend te permite pagar otra Blixt Wallet (o cualquier nodo Lightning que soporte keysend) sin necesidad de factura.",
+      "msg3": "Pulse en la cámara para escanear el código QR de otra cartera o proporcione una clave pública y las sugerencias de ruta a continuación."
+    },
+    "send": {
+      "title": "Enviar",
+      "msg": "Pago Keysend",
+      "error": {
+        "checkAmount": "Comprobar cantidad",
+        "missingPubkey": "Pubkey extraviado"
+      },
+      "alert": "Pago realizado con éxito"
+    },
+    "form": {
+      "amount": {
+        "title": "Cantidad de sat"
+      },
+      "pubkey": {
+        "title": "Llave pública",
+        "placeholder": "Pubkey"
+      },
+      "route": {
+        "title": "Sugerencia de ruta",
+        "placeholder": "Sugerencia de ruta"
+      },
+      "message": {
+        "title": "Mensaje",
+        "placeholder": "Introduce un mensaje de chat aquí"
+      }
+    }
+  },
+  "settings.settings": {
+    "title": "Ajustes",
+    "general": {
+      "title": "General",
+      "name": {
+        "title": "Nombre",
+        "subtitle": "Será usado en transacciones",
+        "dialog": {
+          "msg": "Elija el nombre que aparecerá en las transacciones.\n\nEste nombre se verá en las facturas de quienes te pagan, así como de las personas a las que les pagas.",
+          "accept": "Poner nombre"
+        }
+      },
+      "lang": {
+        "title": "Idioma",
+        "dialog": {
+          "title": "Selecciona un idioma"
+        }
+      },
+      "pushNotification": {
+        "title": "Notificaciones push",
+        "subtitle": "Para eventos de transacciones y canales"
+      },
+      "checkClipboard": {
+        "title": "Buscar facturas en el portapapeles",
+        "subtitle": "Comprueba automáticamente el portapapeles en busca de facturas"
+      },
+      "saveGeolocation": {
+        "title": "Guardar la geolocalización de la transacción",
+        "subtitle": "Guarda localmente la ubicación de una transacción",
+        "logGranted": "Geolocalización concedida",
+        "logDenied": "Permiso de geolocalización"
+      },
+      "mapTheme": {
+        "title": "Elegir tema del mapa"
+      },
+      "hideAmountsEnabled": {
+        "title": "Ocultar cantidades"
+      }
+    },
+    "wallet": {
+      "title": "Cartera",
+      "seed": {
+        "show": {
+          "title": "Mostrar la frase mnemónica",
+          "subtitle": "Mostrar semilla de 24 palabras para esta cartera",
+          "dialog": {
+            "title": "Semilla",
+            "alert": "Copiado al portapapeles",
+            "copy": "Copiar semilla"
+          }
+        },
+        "remove": {
+          "title": "Eliminar frase mnemónica del dispositivo",
+          "subtitle": "Eliminar permanentemente la semilla de este dispositivo",
+          "dialog": {
+            "title": "Borrar semilla",
+            "msg": "Esto eliminará permanentemente la semilla de este dispositivo. ¡Sólo haga esto si ha respaldado su semilla!",
+            "accept": "Eliminar semilla"
+          }
+        }
+      },
+      "backup": {
+        "export": {
+          "title": "Exportar una copia de seguridad de los canales",
+          "alert": "Archivo escrito:"
+        },
+        "verify": {
+          "title": "Verificar la copia de seguridad de canales"
+        },
+        "googleCloud": {
+          "title": "Copia de seguridad de canales en Google Drive",
+          "subtitle": "Copia de seguridad automática de los canales en Google Drive",
+          "alert": "Copia de seguridad en Google Drive activada"
+        },
+        "googleCloudForce": {
+          "title": "Realiza una copia de seguridad manual en Google Drive",
+          "alert": "Canales respaldados en Google Drive"
+        },
+        "iCloud": {
+          "title": "Copia de seguridad de canales en iCloud",
+          "subtitle": "Copia de seguridad automática de canales en iCloud",
+          "alert": "Copia de seguridad en iCloud activada"
+        },
+        "iCloudForce": {
+          "title": "Realiza una copia de seguridad manual en iCloud",
+          "alert": "Canales respaldados en iCloud"
+        },
+        "error": "Error de respaldo"
+      }
+    },
+    "security": {
+      "title": "Seguridad",
+      "pincode": {
+        "title": "Iniciar sesión con código pin"
+      },
+      "biometrics": {
+        "title": "Iniciar sesión con",
+        "fingerprint": "huella dactilar",
+        "faceId": "Face ID",
+        "touchID": "Touch ID"
+      },
+      "chainSync": {
+        "title": "Sincronización de cadena programada",
+        "subtitle": "Se ejecuta en segundo plano cada 2 horas",
+        "dialog": {
+          "title": "No recomendado",
+          "msg": "Advertencia. No está recomendado deshabilitar la sincronización de cadena programada.\n\nAsegúrate de mantener la fecha sincronizada con la Red, de otra manera te arriesgas a perder tus fondos.\n\nSólo haz esto si sabes lo que estás haciendo."
+        }
+      },
+      "gossipSync": {
+        "title": "Sincronizar canales LN al inicio"
+      },
+      "gossipSyncAndroid": {
+        "title": "Sincronización de canales LN programada",
+        "subtitle": "Ejecuta al inicio de Blixt"
+      }
+    },
+    "display": {
+      "title": "Apariencia",
+      "fiatUnit": {
+        "title": "Cambiar unidad fiat"
+      },
+      "bitcoinUnit": {
+        "title": "Cambiar unidad Bitcoin"
+      },
+      "onchainExplorer": {
+        "title": "Explorador Onchain",
+        "dialog": {
+          "title": "Cambiar explorador On-chain"
+        }
+      }
+    },
+    "bitcoinNetwork": {
+      "title": "Red Bitcoin",
+      "node": {
+        "title": "Nodo de Bitcoin",
+        "subtitle": "Establecer nodo de Bitcoin (BIP157) para conectar a",
+        "setDialog": {
+          "title": "Establecer Nodo",
+          "info": "Configure un nodo Bitcoin compatible con BIP157 para establecer una conexión.",
+          "leaveBlankToSearch": "Déjalo en blanco para permitir que Blixt Wallet busque en la red Bitcoin un nodo válido.",
+          "longPressToReset": "Para restablecer el nodo predeterminado ({{defaultNode}}), mantén presionada la opción."
+        },
+        "restoreDialog": {
+          "title": "Restaurar nodo",
+          "msg": "Te gustaría restaurar al nodo por defecto"
+        }
+      },
+      "restartDialog": {
+        "title": "Reinicio requerido",
+        "msg": "Blixt Wallet debe reiniciarse antes de aplicar la nueva configuración.",
+        "msg1": "¿Te gustaría hacer esto ahora?"
+      },
+      "rpc": {
+        "title": "Establecer servidor de bitcoind RPC"
+      },
+      "rpcuser": {
+        "title": "Establezca el usuario de bitcoind RPC"
+      },
+      "rpcpass": {
+        "title": "Establezca la contraseña de bitcoind RPC"
+      },
+      "zmqRawBlock": {
+        "title": "Establecer servidor de bitcoind ZMQ Raw Block"
+      },
+      "zmqRawTx": {
+        "title": "Establecer servidor de bitcoind ZMQ Raw Tx"
+      }
+    },
+    "LN": {
+      "title": "Lightning Network",
+      "network": {
+        "title": "Mostrar información de red",
+        "subtitle": ""
+      },
+      "node": {
+        "title": "Mostrar datos del nodo",
+        "subtitle": ""
+      },
+      "peers": {
+        "title": "Mostrar pares de Lightning",
+        "subtitle": ""
+      },
+      "maxLNFeePercentage": {
+        "title": "Establecer una tarifa de pago máximo",
+        "subtitle": "Proporcional a la cantidad",
+        "dialog": {
+          "title": "Establecer el porcentaje max de tarifa LN"
+        },
+        "resetDialog": {
+          "title": "¿Le gustaría restaurar la tarifa LN max al valor predeterminado ({{defaultMaxLNFee}}%)?"
+        }
+      },
+      "autopilot": {
+        "title": "Abrir canales automáticamente",
+        "subtitle": ""
+      },
+      "autopilotNodePubkey": {
+        "title": "Node for automatic channel opener",
+        "setDialog": {
+          "title": "Set node"
+        },
+        "restoreDialog": {
+          "title": "Restore automatic channel opener node",
+          "msg": "Would you like to restore to the default node"
+        }
+      },
+      "inbound": {
+        "title": "Servicios de canal entrante",
+        "subtitle": "Usar un servicio que otorgue capacidad entrante para poder recibir pagos",
+        "dialog": {
+          "title": "Proveedor de canal entrante",
+          "msg1": "Elige un proveedor de canal entrante y presiona en Continuar.",
+          "msg2": "Tu navegador web abrirá la página web del proveedor correspondiente cuando sea posible solicitar un canal.",
+          "msg3": "Cuando lo hayas hecho, puedes copiar la dirección del código y/o abrir el enlace usando Blixt Wallet."
+        }
+      },
+      "LSP": {
+        "title": "Establecer servidor Dunder LSP",
+        "subtitle": "",
+        "setDialog": {
+          "title": "Establecer servidor Dunder",
+          "acept": "Establecer servidor"
+        },
+        "restoreDialog": {
+          "title": "Restaurar servidor Dunder",
+          "msg": "¿Te gustaría restaurar el servidor por defecto de Dunder?"
+        }
+      },
+      "speedloaderServer": {
+        "title": "Establecer el servidor de sincronización del canal LN",
+        "subtitle": "",
+        "setDialog": {
+          "title": "Establecer el servidor de sincronización del canal  LN"
+        },
+        "restoreDialog": {
+          "title": "Restaurar el servidor de sincronización del canal LN",
+          "msg": "¿Le gustaría restaurar al servidor predeterminado de sincronización de canal LN ?"
+        }
+      },
+      "lightningBoxServer": {
+        "title": "Establecer el servidor de Lightning Box",
+        "subtitle": "",
+        "setDialog": {
+          "title": "Establecer el servidor de Lightning Box"
+        },
+        "restoreDialog": {
+          "title": "Restablecer el servidor Lightning Box",
+          "msg": "¿Le gustaría restablecer el servidor de Lightning Box predeterminado?"
+        }
+      },
+      "graphSync": {
+        "title": "Espera a que el grafo se sincronice antes de pagar",
+        "subtitle": "El grafo sincronizado dirige los pagos por las mejores rutas"
+      },
+      "zeroConfPeers": {
+        "title": "Establecer pares \"zero conf\"",
+        "subtitle": "Agregue los pubkeys de sus pares que desea permitir canales \"zero conf\" desde",
+        "setDialog": {
+          "title": "Pares \"zero conf\"",
+          "msg1": "Los valores separados por comas de las claves públicas, para permitir canales \"zero conf\"",
+          "msg2": "Confiará en los canales de estos pares hasta que haya al menos una confirmación de cadena."
+        }
+      }
+    },
+    "miscelaneous": {
+      "title": "Varios",
+      "about": {
+        "title": "Sobre",
+        "subtitle": ""
+      },
+      "appLog": {
+        "title": "Copiar el registro de la aplicación al almacenamiento local",
+        "subtitle": "",
+        "dialog": {
+          "alert": "Copiar el archivo del registro de la aplicación a",
+          "error": "Error al copiar el archivo del registro de la aplicación."
+        }
+      },
+      "lndLog": {
+        "title": "Copiar el registro de lnd al almacenamiento local",
+        "dialog": {
+          "error": "Error copiando el archivo del registro lnd."
+        }
+      },
+      "speedloaderLog": {
+        "title": "Copiar archivo de registro de sincronización del canal LN al almacenamiento local",
+        "dialog": {
+          "error": "Error de copiar el archivo de registro de Speedloader."
+        }
+      },
+      "dev": {
+        "title": "Ir a la pantalla dev",
+        "subtitle": ""
+      },
+      "expiredInvoices": {
+        "title": "Ocultar facturas caducadas automáticamente",
+        "subtitle": ""
+      },
+      "screenTransactions": {
+        "title": "Transiciones de pantalla",
+        "subtitle": ""
+      },
+      "signMessage": {
+        "title": "Firmar mensaje con la llave de la cartera",
+        "subtitle": "",
+        "dialog1": {
+          "title": "Firmar mensaje"
+        },
+        "dialog2": {
+          "title": "Firma",
+          "alert": "Copiado al portapapeles"
+        }
+      },
+      "setLndLogLevel": {
+        "title": "Establecer el nivel de registro de LND",
+        "dialog": {
+          "title": "Establezca el nivel de registro de LND",
+          "description": "El nivel de registro cambia la verbosidad del registro LND, accesible desde la configuración"
+        },
+        "restoreDialog": {
+          "title": "¿Le gustaría restaurar el nivel de registro de LND al nivel predeterminado ({{defaultLndLogLevel}})?"
+        }
+      },
+      "customInvoicePreimageEnabled": {
+        "title": "Habilitar la factura personalizada preimages"
+      },
+      "randomizeSettings": {
+        "title": "Configuraciones aleatorias"
+      },
+      "randomizeSettingsOnStartup": {
+        "title": "Configuraciónes aleatorias al iniciar"
+      }
+    },
+    "experimental": {
+      "title": "Experimentos",
+      "LSP": {
+        "title": "Habilitar Dunder LSP",
+        "subtitle": "Lightning Service Provider que ayuda con la liquidez entrante"
+      },
+      "MPP": {
+        "title": "Habilitar pagos Multi-ruta",
+        "subtitle": "Los pagos pueden tomar hasta 16 rutas"
+      },
+      "tor": {
+        "title": "Habilitar Tor",
+        "subtitle": "",
+        "enabled": {
+          "title": "Reiniciar aplicación y habilitar Tor",
+          "msg1": "Habilitar Tor hará que la cartera se conecte con sus pares (tanto de la Red Bitcoin como la de Lightning) a través de la Red Tor.",
+          "msg2": "Tú serás capaz de conectar y abrir canales a los nodos de Lightning que usan los servicios onion.",
+          "msg3": "ADVERTENCIA: Blixt Wallet seguirá hablando a los siguientes servicios sin Tor",
+          "msg4": "Razón: Para conseguir tarifas fiat/bitcoin",
+          "msg5": "Razón: Para conseguir la altura actual del bloque",
+          "msg6": "Razón: Para la copia de seguridad de Google Drive",
+          "msg7": "Razón: Para confiar en los nodos de Lightning",
+          "msg8": "Los navegadores WebLN y LNURL no usarán Tor."
+        },
+        "disabled": {
+          "title": "Reiniciar la aplicación y desactivar Tor",
+          "msg1": "Deshabilitar los requisitos de Tor y reiniciar la aplicación.",
+          "msg2": "¿Te gustaría proceder?"
+        }
+      },
+      "onion": {
+        "title": "Mostrar servicio Tor onion",
+        "subtitle": "Para conectar y abrir canales a esta cartera"
+      },
+      "keysend": {
+        "title": "Keysend (experimental)",
+        "subtitle": ""
+      },
+      "invoiceExpiry": {
+        "title": "Vencimiento de la factura (segundos)",
+        "subtitle": "{{expiry}} segundos"
+      }
+    },
+    "debug": {
+      "title": "Debug",
+      "startup": {
+        "title": "Mostrar información sobre el inicio de la aplicación",
+        "subtitle": ""
+      },
+      "showNotifications": {
+        "title": "Mostrar notificaciones para esta sesión",
+        "subtitle": ""
+      },
+      "showDebugLog": {
+        "title": "Mostrar registro de depuración para esta sesión",
+        "subtitle": ""
+      },
+      "helpCencer": {
+        "title": "Centro de ayuda LndMobile",
+        "subtitle": ""
+      },
+      "LSP": {
+        "title": "Diagnosticar problemas de Dunder",
+        "subtitle": ""
+      },
+      "lndLog": {
+        "title": "Leer lnd log",
+        "subtitle": ""
+      },
+      "speedloaderLog": {
+        "title": "Leer el registro de sincronización del canal LN",
+        "subtitle": ""
+      },
+      "keysend": {
+        "title": "Prueba Keysend",
+        "subtitle": ""
+      },
+      "googleDrive": {
+        "title": "Prueba de Google Drive",
+        "subtitle": ""
+      },
+      "webln": {
+        "title": "WebLN",
+        "subtitle": ""
+      },
+      "config": {
+        "title": "Escribir config",
+        "subtitle": ""
+      },
+      "demo": {
+        "title": "Activar modo Demo",
+        "subtitle": "Usado para promo. Reiniciar aplicación para resetear."
+      },
+      "rescanWallet": {
+        "title": "Volver a escanear la cartera",
+        "subtitle": "Vuelva a escanear los bloques en busca de transacciones pertenecientes a esta cartera"
+      },
+      "getNodeInfo": {
+        "title": "Obtener información del nodo"
+      },
+      "getChannelInfo": {
+        "title": "Obtener información del canal"
+      },
+      "demoMode": {
+        "title": "Activar el Modo Demo",
+        "subtitle": "Se utiliza para la promoción. Reinicie la aplicación para restablecerla"
+      },
+      "disableGraphCache": {
+        "title": "Desactivar la caché del grafo lnd"
+      },
+      "resetMissionControl": {
+        "title": "Restablecer conocimiento de enrutamiento de pago"
+      },
+      "strictGraphPruning": {
+        "title": "Habilitar la poda de gráfico LN estricta"
+      },
+      "bimodalPathFinding": {
+        "title": "Habilitar la búsqueda de rutas bimodal"
+      },
+      "compactLndDatabases": {
+        "title": "Compactar base de datos lnd"
+      },
+      "enforceSpeedloaderOnStartup": {
+        "title": "Hacer cumplir la sincronización de \"gossip\" al inicio"
+      },
+      "persistentServices": {
+        "title": "Habilitar la aplicación persistente",
+        "subtitle": "La aplicación permanece activa en segundo plano"
+      }
+    },
+    "powerUserTools": {
+      "title": "Power user tools",
+      "subtitle": "Debug and advanced tools for power users"
+    }
+  },
+  "settings.about": {
+    "title": "Sobre Blixt Wallet",
+    "msg1": "Versión",
+    "msg2": "Por",
+    "msg3": "Cartera de código abierto con licencia MIT",
+    "msg4": "Creada usando",
+    "msg5": "y otros proyectos increíbles de código abierto",
+    "msg6": "El icono de Tor está lincenciado bajo CC BY 3.0 by",
+    "msg7": "licencia"
+  },
+  "settings.setPincode": {
+    "enter": "Introduce un código pin",
+    "confirm": "Confirma tu código pin"
+  },
+  "settings.removePincodeAuth": {
+    "title": "Escribir el código pin actual para quitar el código pin"
+  },
+  "settings.lightningPeers": {
+    "layout": {
+      "title": "Pares de Lightning"
+    },
+    "alias": "Alias del nodo",
+    "pubKey": "Llave pública del nodo",
+    "address": "Dirección del nodo",
+    "data": {
+      "title": "Datos",
+      "bytesSent": "Bytes enviados",
+      "bytesRecv": "Bytes recibidos"
+    },
+    "transfer": {
+      "title": "Transferir",
+      "satSent": "sat enviado",
+      "satRecv": "sat recibido"
+    },
+    "inbound": "Entrante",
+    "syncType": "Tipo de sincronización",
+    "errors": "Errores",
+    "disconnect": "Desconectar par"
+  },
+  "settings.connectToLightningPeer": {
+    "layout": {
+      "title": "Conectar a un par de Lightning"
+    },
+    "connect": {
+      "title": "URI del nodo",
+      "placeholder": "URI del par",
+      "accept": "Conectar"
+    }
+  },
+  "settings.lightningNetworkInfo": {
+    "title": "Lightning Network Info",
+    "avgChannelSize": "Tamaño pro-medio del canal",
+    "avgOutDegree": "Grado promedio de salida",
+    "graphDiameter": "Diámetro del gráfico",
+    "medianChannelSizeSat": "Tamaño medio del canal",
+    "numChannels": "Número de canales",
+    "numNodes": "Número de nodos",
+    "numZombieChans": "Número de canales zombis",
+    "totalNetworkCapacity": "Capacidad total de la red"
+  },
+  "settings.lightningNodeInfo": {
+    "title": "Información de nodo",
+    "alias": "Alias de nodo",
+    "chain": "Cadena",
+    "timestamp": "Mejor marca de tiempo del encabezado",
+    "blockHash": "Hash del bloque",
+    "blockHeight": "Altura del bloque",
+    "identityPubkey": "Llave pública",
+    "channel": {
+      "title": "Número de Canales",
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "pending": "Pendiente"
+    },
+    "numPeers": "Número de pares",
+    "syncedToChain": "Sincronizado con la cadena",
+    "syncedToGraph": "Sincronizado con el grafo",
+    "nodeUris": "URIs del nodo",
+    "version": "Versión de Lnd",
+    "features": "Características del nodo"
+  },
+  "settings.torShowOnionAddress": {
+    "title": "Tor Onion Service",
+    "msg1": "Escanear este código QR para abrir un canal a esta cartera",
+    "msg2": "No se pudo resolver la dirección onion"
+  },
+  "settings.toastLog": {
+    "title": "Registro de notificaciones"
+  },
+  "settings.debugLog": {
+    "title": "Registro de depuración"
+  },
+  "welcome.addFunds": {
+    "title": "Añadir fondos",
+    "msg1": "Para empezar a usar Lightning en Blixt Wallet",
+    "msg2": "enviar Bitcoins a la siguiente dirección"
+  },
+  "lightningBox.registration": {
+    "info": {
+      "welcome": "Bienvenido al registro de Lightning Box ",
+      "whatIs": "Lightning Box es un proveedor de servicios de direcciones Lightning que reenvía las solicitudes de pago directamente al teléfono, lo que le brinda una dirección Lightning de custodia propria para dispositivos móviles.",
+      "persistentMode": "Este servicio depende del modo persistente, porque la aplicación debe permanecer activa para recibir pagos entrantes. Asegúrese de que la optimización de la batería esté apagada en su dispositivo. De lo contrario, este servicio puede no funcionar.",
+      "currentRules": "El servicio es de uso gratuito. Sin embargo, debido a razones técnicas, actualmente requiere un canal con el proveedor de Lightning Box. Actualmente no es posible cambiar su dirección Lightning después de haber elegido una."
+    },
+    "prerequisites": {
+      "prerequisites": "Requisitos previos",
+      "checkingEligibility": "Verificación de elegibilidad ...",
+      "eligible": "Elegible",
+      "youHaveChannel": "Tiene un canal con el servicio Lightning Box.",
+      "notEligible": "No elegible"
+    },
+    "registration": {
+      "registration": "Registro",
+      "fields": {
+        "address": "Dirección",
+        "messageToPayer": "Mensaje al pagador"
+      },
+      "register": "Registrar"
+    }
+  },
+  "lightningBox.info": {
+    "yourLightningAddress": "Su dirección Lightning de Lightning Box es:",
+    "showQrCode": "Mostrar código QR"
+  },
+  "welcome.almostDone": {
+    "autopilot": {
+      "title": "Apertura de canales automática",
+      "msg": "Abrir canales cuando los fondos en onchain estén disponibles"
+    },
+    "done": {
+      "title": "¡Casi listo!",
+      "msg1": "Aquí hay algunas configuraciones de esta cartera que puedes configurar a tu gusto",
+      "msg2": "Cuando estés listo, presiona continuar"
+    }
+  },
+  "welcome.confirm": {
+    "alert": {
+      "title": "Inténtalo de nuevo",
+      "msg": "Lo siento, has escrito las palabras en el orden incorrecto. Por favor inténtalo de nuevo"
+    },
+    "seed": {
+      "title": "Confirma tu semilla"
+    }
+  },
+  "welcome.googleDriveBackup": {
+    "enable": {
+      "title": "Habilitar la copia de seguridad en Google Drive",
+      "msg": "Copia de seguridad en Google Drive habilitada"
+    },
+    "backup": {
+      "title": "Copia de seguridad en la nube",
+      "msg": "Para mantener seguros tus fondos off-chain en caso de que pierdas el dispositivo te recomendamos hacer una copia de seguridad en Google Drive.",
+      "msg1": "Esto mantendrá una copia de seguridad encriptada de los canales que sólo se podrá usar junto con la semilla de la cartera.",
+      "msg2": "Cuando estés listo, presiona Continuar."
+    }
+  },
+  "welcome.iCloudBackup": {
+    "enable": {
+      "title": "Habilitar la copia de seguridad en iCloud",
+      "msg": "Copia de seguridad en iCloud habilitada"
+    },
+    "backup": {
+      "title": "Copia de seguridad en iCloud",
+      "msg": "Para mantener tus fondos off-chain seguros en caso de que pierdas el dispositivo, te recomendamos mantener los canales en una copia de seguridad en iCloud",
+      "msg1": "Esto mantendrá una copia de seguridad de los canales que sólo se podrá usar junto con la semilla de la cartera.",
+      "msg2": "Cuando estés listo, presiona continuar"
+    }
+  },
+  "welcome.restore": {
+    "restore": {
+      "title": "Restaurar cartera",
+      "msg": "Para restaurar tu cartera, escribe cada palabra de tu semilla en orden y separada por un espacio.",
+      "msg1": "Si quieres restaurar tus canales de la Red Lightning, necesitas la copia de seguridad de los mismos.",
+      "loading": "Restaurar cartera",
+      "passphrase": {
+        "placeholder": "Passphrase (optional)"
+      },
+      "channel": {
+        "title": "Copia de seguridad de los canales",
+        "file": "Elige una copia de seguridad del archivo del canal en la memoria del dispositivo",
+        "google": {
+          "title": "Restaurar vía Google Drive",
+          "alert": "Restaurar vía Google Drive falló"
+        },
+        "iCloud": {
+          "title": "Restaurar vía iCloud",
+          "alert": "La restauración a través de iCloud ha fallado"
+        }
+      },
+      "seed": "La semilla debe ser de exactamente 24 palabras"
+    },
+    "backup": {
+      "google": "Copia de seguridad vía Google Drive",
+      "iCloud": "Copia de seguridad vía iCloud"
+    }
+  },
+  "welcome.seed": {
+    "title": "Bienvenido a Blixt Wallet!",
+    "msg": "Esta es la copia de seguridad de tu semilla.",
+    "msg1": "Escríbela en una hoja de papel y guárdala en un lugar seguro.",
+    "msg2": "Si pierdes el acceso a tu cartera",
+    "msg3": "Deberías poder recuperar tus fondos usando la copia de seguridad de tu semilla",
+    "msg4": "La semilla usada está aezeed.",
+    "button": "Ya lo he escrito"
+  }
+}
